@@ -4,31 +4,14 @@ from firebase_admin import credentials,initialize_app,auth
 import json
 from sqlalchemy import create_engine,Column,String,Integer
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.ext.declarative import declarative_base
-
-path = "../serviceAccountKey.json"
+from models.users import User
+from models.test import Testing
 
 engine = create_engine("postgresql://postgres:1234@localhost:5432/dev")
 Session = sessionmaker(engine)
 session = Session()
 
-Base = declarative_base()
-#================ database models start ================#
-"""
-CREATE TABLE users(
-	uid VARCHAR(100) PRIMARY KEY,
-	Email VARCHAR(50),
-	UserName VARCHAR(50)
-);
-"""
-
-class User(Base):
-    __tablename__ = 'users'
-    uid = Column(String, primary_key=True)
-    email = Column(String)
-    username = Column(String)
-
-#================ database models end ================#
+path = "../serviceAccountKey.json"
 cred = credentials.Certificate(path)
 initialize_app(cred)
 
@@ -42,6 +25,11 @@ class SignUp(BaseModel):
     UserName : str
     Email : str
     Password: str
+
+class Test(BaseModel):
+    name : str
+    age : str
+    temp : int
 #================ FastAPI BaseModel End ================#
 
 #helper function
@@ -60,6 +48,14 @@ def login(login:Login):
         return {"message" : "user logged in successfull"},200
     else:
         return {"message" : "Error occured while loggin in"},401
+
+@app.post("/test")
+def test(test:Test):
+    current_test = Testing(name = test.name,age = test.age,temp = test.temp)
+    session.add(current_test)
+    session.commit()
+    
+    return{"message":"working"},200
 
 @app.post("/signup")
 def signup(signup:SignUp):
