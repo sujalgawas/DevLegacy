@@ -61,6 +61,9 @@ dist/
 .coverage
 htmlcov/
 
+#keys 
+/backend/serviceAccountKey.json
+
 ############################
 # OS files
 ############################
