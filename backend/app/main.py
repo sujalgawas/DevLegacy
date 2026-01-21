@@ -7,6 +7,15 @@ from sqlalchemy.orm import sessionmaker
 from models.users import User
 from models.test import Testing
 
+import requests
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+github_client_id = os.getenv("github_client_id")
+github_secret = os.getenv("github_secret")
+github_access_token = os.getenv("github_access_token")
+
 engine = create_engine("postgresql://postgres:1234@localhost:5432/dev")
 Session = sessionmaker(engine)
 session = Session()
@@ -30,6 +39,11 @@ class Test(BaseModel):
     name : str
     age : str
     temp : int
+
+class User_Data(BaseModel):
+    followers : int
+    repos : int 
+    total_commits : int
 #================ FastAPI BaseModel End ================#
 
 #helper function
@@ -37,6 +51,26 @@ def verify_token(token):
     decoded_token = auth.verify_id_token(token)
     uid = decoded_token['uid']
     return uid
+
+#testing github api
+@app.get("/username/{gitname}")
+async def get_user_data(gitname : str):
+    
+    url = f"https://api.github.com/search/users?q={gitname}"
+    
+    header = {
+        'Authorization': f'Bearer {github_access_token}',
+        "Accept":"application/vnd.github+json",
+        "X-GitHub-Api-Version":"2022-11-28",
+    }
+    
+    reponse = requests.get(url=url,headers=header)
+    
+    if reponse.status_code == 200:
+        return {"message" : "api works",
+                "data":reponse.json()},200
+    else:
+        return {"message" : "error api request"},401
 
 @app.post("/login")
 def login(login:Login):

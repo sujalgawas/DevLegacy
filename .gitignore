@@ -63,6 +63,7 @@ htmlcov/
 
 #keys 
 /backend/serviceAccountKey.json
+/backend/.env
 
 ############################
 # OS files
