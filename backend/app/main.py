@@ -52,6 +52,43 @@ def verify_token(token):
     uid = decoded_token['uid']
     return uid
 
+@app.get("/username/commit/{gitname}")
+async def get_total_commit(gitname: str):
+    import re
+    
+    url = f"https://api.github.com/users/{gitname}/repos?type=owner"
+
+    header = {
+        'Authorization': f'Bearer {github_access_token}',
+        "Accept":"application/vnd.github+json",
+        "X-GitHub-Api-Version":"2022-11-28",
+    }
+    
+    response = requests.get(url=url,headers=header)
+    
+    repository = response.json()
+    
+    final_count = 0
+    commit_pre_repo = {}
+    total_repository = len(repository) - 1
+    for repo_count in range(total_repository):
+        repo_name = repository[repo_count]["name"]
+        url = f"https://api.github.com/repos/{gitname}/{repo_name}/commits?per_page=1&author=sujalgawas"
+        response = requests.get(url=url,headers=header)
+
+        if "Link" in response.headers:
+            link = response.headers["Link"]
+            final_list = re.findall(r"[\d\.]+",link)
+            final_count = int(final_list[-1]) + final_count
+            commit_pre_repo[repo_name] = int(final_list[-1])
+
+    if response.status_code == 200:
+        return {"message" : "total commits founds",
+                "total_commits" : final_count,
+                "commit pre repository" : commit_pre_repo},200
+    else:
+        return {"message" : "error api request"},401
+
 #testing github api
 @app.get("/username/{gitname}")
 async def get_user_data(gitname : str):
@@ -71,6 +108,8 @@ async def get_user_data(gitname : str):
                 "data":reponse.json()},200
     else:
         return {"message" : "error api request"},401
+
+
 
 @app.post("/login")
 def login(login:Login):
