@@ -66,50 +66,92 @@ def verify_token(token):
     uid = decoded_token['uid']
     return uid
 
-def github_api(url):
+def github_api(query : str,variable = None):
+    url = "https://api.github.com/graphql"
     
     header = {
         'Authorization': f'Bearer {github_access_token}',
         "Accept":"application/vnd.github+json",
-        "X-GitHub-Api-Version":"2022-11-28",
+        #"X-GitHub-Api-Version":"2022-11-28",
     }
     
-    response = requests.get(url=url,headers=header)
-    
-    return response.json()
+    json_data = {"query":query}
+    if variable:
+        json_data["variables"] = variable
+        
+    response = requests.post(url=url,json=json_data,headers=header)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        raise Exception(f"query failed {response.status_code}:{response.text}") 
+
+def get_user_id(login):
+    """Helper to get the Node ID for a username (required for filtering history)"""
+    query = """
+    query($login: String!) {
+        user(login: $login) { id }
+    }
+    """
+    data = github_api(query, {'login': login})
+    return data['data']['user']['id']
 
 @app.get("/username/commit/{gitname}")
 async def get_total_commit(gitname: str):
+    uid = "2"
     
-    url = f"https://api.github.com/users/{gitname}/repos?type=owner"
+    try:
+        author_id = get_user_id(gitname)
+    except:
+        return {"message":"Author not found"}
+    
+    query = """
+    query($owner: String!, $authorId:ID!){
+        user(login: $owner){
+            repositories(first: 100, ownerAffiliations: OWNER){
+                nodes{
+                    name
+                    defaultBranchRef{
+                        target{
+                            ... on Commit {
+                                history(author: {id: $authorId}){
+                                    totalCount
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    """
+    variables = {"owner":gitname, "authorId":author_id}
+    result = github_api(query,variables)
+    
+    total_commits = 0
+    commit_per_repo = {}
+    
+    repos = result.get('data', {}).get('user', {}).get('repositories', {}).get('nodes', [])
+    
+    for repo in repos:
+        repo_name = repo['name']
+        count = 0
+        
+        if repo['defaultBranchRef'] and repo['defaultBranchRef']['target']['history']:
+            count = repo['defaultBranchRef']['target']['history']['totalCount']
+            
+        if count > 0:
+            commit_per_repo[repo_name] = count
+            total_commits += count
 
-    repository = github_api(url)
-    
-    final_count = 0
-    commit_pre_repo = {}
-    total_repository = len(repository) - 1
-    
-    for repo_count in range(total_repository):
-        repo_name = repository[repo_count]["name"]
-        url = f"https://api.github.com/repos/{gitname}/{repo_name}/commits?per_page=1&author=sujalgawas"
-        response = github_api(url)
-
-        if "Link" in response.headers:
-            link = response.headers["Link"]
-            final_list = re.findall(r"[\d\.]+",link)
-            final_count = int(final_list[-1]) + final_count
-            commit_pre_repo[repo_name] = int(final_list[-1])
-    
-    user_commit_metadata = commit_status(uid = 1,total_commits = final_count,commits_per_repo = commit_pre_repo)
+    user_commit_metadata = commit_status(uid=uid,total_commits=total_commits,commits_per_repo=commit_per_repo)
     session.add(user_commit_metadata)
     session.commit()
 
-    if response.status_code == 200:
-        return {"message" : "total commits founds",
-                "total_commits" : final_count,
-                "commit pre repository" : commit_pre_repo},200
-    else:
-        return {"message" : "error api request"},401
+    return {
+        "message": "total commits found",
+        "total_commits": total_commits,
+        "commit_per_repository": commit_per_repo
+    }, 200
 
 
 @app.get("/username/profile/{gitname}")
