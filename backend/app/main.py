@@ -7,6 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from models.users import User
 from models.test import Testing
 from models.commit_status import commit_status
+from models.profile import github_profile
 
 import re 
 import requests
@@ -42,6 +43,15 @@ class Test(BaseModel):
     age : str
     temp : int
 
+class GithubProfile(BaseModel):
+    uid : int
+    github_id : int
+    github_profile : str
+    name : str
+    public_repo : int
+    followers : int
+    following : int
+    
 """
 class User_Data(BaseModel):
     followers : int
@@ -56,11 +66,8 @@ def verify_token(token):
     uid = decoded_token['uid']
     return uid
 
-@app.get("/username/commit/{gitname}")
-async def get_total_commit(gitname: str):
+def github_api(url):
     
-    url = f"https://api.github.com/users/{gitname}/repos?type=owner"
-
     header = {
         'Authorization': f'Bearer {github_access_token}',
         "Accept":"application/vnd.github+json",
@@ -69,7 +76,14 @@ async def get_total_commit(gitname: str):
     
     response = requests.get(url=url,headers=header)
     
-    repository = response.json()
+    return response.json()
+
+@app.get("/username/commit/{gitname}")
+async def get_total_commit(gitname: str):
+    
+    url = f"https://api.github.com/users/{gitname}/repos?type=owner"
+
+    repository = github_api(url)
     
     final_count = 0
     commit_pre_repo = {}
@@ -78,7 +92,7 @@ async def get_total_commit(gitname: str):
     for repo_count in range(total_repository):
         repo_name = repository[repo_count]["name"]
         url = f"https://api.github.com/repos/{gitname}/{repo_name}/commits?per_page=1&author=sujalgawas"
-        response = requests.get(url=url,headers=header)
+        response = github_api(url)
 
         if "Link" in response.headers:
             link = response.headers["Link"]
@@ -99,21 +113,49 @@ async def get_total_commit(gitname: str):
 
 
 @app.get("/username/profile/{gitname}")
-async def get_total_commit(gitname: str):
+async def get_github_profile(gitname: str):
+    uid = "1"
     
     url = f"https://api.github.com/users/{gitname}"
-
-    header = {
-        'Authorization': f'Bearer {github_access_token}',
-        "Accept":"application/vnd.github+json",
-        "X-GitHub-Api-Version":"2022-11-28",
-    }
     
-    response = requests.get(url=url,headers=header)
+    repository = github_api(url)
     
-    repository = response.json()
     
-    return repository
+    profile = GithubProfile(uid = uid,
+                            github_id = repository['id'],
+                            github_profile = repository['url'],
+                            name = repository['name'],
+                            public_repo = repository['public_repos'],
+                            followers = repository['followers'],
+                            following = repository['following'])
+    
+    profile_db = session.query(github_profile).filter_by(uid=uid).first()
+    
+    if profile_db:
+        profile_db.github_id = repository["id"]
+        profile_db.github_profile = repository["url"]
+        profile_db.name = repository["name"]
+        profile_db.public_repo = repository["public_repos"]
+        profile_db.followers = repository["followers"]
+        profile_db.following = repository["following"]
+    else:
+        profile_db = github_profile(uid = uid,
+                                github_id = repository['id'],
+                                github_profile = repository['url'],
+                                name = repository['name'],
+                                public_repo = repository['public_repos'],
+                                followers = repository['followers'],
+                                following = repository['following'])
+        
+        session.add(profile_db)
+        
+    session.commit()
+    
+    if profile:
+        return {"message":"profile data is saved",
+                "profile": profile},200
+    else:
+        return {"message":"api not found"},401
 
 #testing github api
 @app.get("/username/{gitname}")
@@ -121,13 +163,7 @@ async def get_user_data(gitname : str):
     
     url = f"https://api.github.com/search/users?q={gitname}"
     
-    header = {
-        'Authorization': f'Bearer {github_access_token}',
-        "Accept":"application/vnd.github+json",
-        "X-GitHub-Api-Version":"2022-11-28",
-    }
-    
-    reponse = requests.get(url=url,headers=header)
+    reponse = github_api(url)
     
     if reponse.status_code == 200:
         return {"message" : "api works",

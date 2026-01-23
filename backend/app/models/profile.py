@@ -1,11 +1,12 @@
-from sqlaclchmey import Columns,Integer,String 
+from sqlalchemy import Column,Integer,String
 from db.base import Base 
 
 class github_profile(Base):
     __tablename__ = "github_profile"
-    uid = Columns(String,primary_key = True)
-    gitub_user_id = Columns()
-    github_profile = Columns()
-    public_repo = Columns()
-    followers = Columns()
-    following = Columns()
+    uid = Column(String,primary_key = True)
+    github_id = Column(Integer)
+    github_profile = Column(String)
+    name = Column(String)
+    public_repo = Column(Integer)
+    followers = Column(Integer)
+    following = Column(Integer)

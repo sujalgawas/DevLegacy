@@ -7,6 +7,7 @@ from alembic import context
 from models import users
 from models import test
 from models import commit_status
+from models import profile
 from db.base import Base
 
 # this is the Alembic Config object, which provides
