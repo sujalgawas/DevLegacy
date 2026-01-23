@@ -6,7 +6,9 @@ from sqlalchemy import create_engine,Column,String,Integer
 from sqlalchemy.orm import sessionmaker
 from models.users import User
 from models.test import Testing
+from models.commit_status import commit_status
 
+import re 
 import requests
 import os
 from dotenv import load_dotenv
@@ -40,10 +42,12 @@ class Test(BaseModel):
     age : str
     temp : int
 
+"""
 class User_Data(BaseModel):
     followers : int
     repos : int 
     total_commits : int
+"""
 #================ FastAPI BaseModel End ================#
 
 #helper function
@@ -54,7 +58,6 @@ def verify_token(token):
 
 @app.get("/username/commit/{gitname}")
 async def get_total_commit(gitname: str):
-    import re
     
     url = f"https://api.github.com/users/{gitname}/repos?type=owner"
 
@@ -71,6 +74,7 @@ async def get_total_commit(gitname: str):
     final_count = 0
     commit_pre_repo = {}
     total_repository = len(repository) - 1
+    
     for repo_count in range(total_repository):
         repo_name = repository[repo_count]["name"]
         url = f"https://api.github.com/repos/{gitname}/{repo_name}/commits?per_page=1&author=sujalgawas"
@@ -81,6 +85,10 @@ async def get_total_commit(gitname: str):
             final_list = re.findall(r"[\d\.]+",link)
             final_count = int(final_list[-1]) + final_count
             commit_pre_repo[repo_name] = int(final_list[-1])
+    
+    user_commit_metadata = commit_status(uid = 1,total_commits = final_count,commits_per_repo = commit_pre_repo)
+    session.add(user_commit_metadata)
+    session.commit()
 
     if response.status_code == 200:
         return {"message" : "total commits founds",
@@ -88,6 +96,24 @@ async def get_total_commit(gitname: str):
                 "commit pre repository" : commit_pre_repo},200
     else:
         return {"message" : "error api request"},401
+
+
+@app.get("/username/profile/{gitname}")
+async def get_total_commit(gitname: str):
+    
+    url = f"https://api.github.com/users/{gitname}"
+
+    header = {
+        'Authorization': f'Bearer {github_access_token}',
+        "Accept":"application/vnd.github+json",
+        "X-GitHub-Api-Version":"2022-11-28",
+    }
+    
+    response = requests.get(url=url,headers=header)
+    
+    repository = response.json()
+    
+    return repository
 
 #testing github api
 @app.get("/username/{gitname}")
@@ -108,7 +134,6 @@ async def get_user_data(gitname : str):
                 "data":reponse.json()},200
     else:
         return {"message" : "error api request"},401
-
 
 
 @app.post("/login")

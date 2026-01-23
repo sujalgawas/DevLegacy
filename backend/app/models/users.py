@@ -1,4 +1,5 @@
-from sqlalchemy import Column, String
+from sqlalchemy import Column, String, Integer
+from sqlalchemy.dialects.postgresql import JSONB 
 from db.base import Base
 
 #================ database models start ================#
