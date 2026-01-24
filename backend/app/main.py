@@ -168,6 +168,60 @@ async def get_total_commit(gitname: str):
         "commit_per_repository": commit_per_repo
     }, 200
 
+@app.get("/username/technology_stack/{gitname}")
+async def get_tech_stack(gitname:str):
+    uid = "1"
+    
+    try: 
+        author_id = get_user_id(gitname)
+    except:
+        return {"message": "Author not found"}
+    
+    query = """
+        query($owner: String!){
+            user(login: $owner){
+                repositories(first:100, ownerAffiliations: OWNER){
+                    nodes{
+                        name
+                        languages(first:100){
+                            totalCount
+                            nodes{
+                                name
+                            }
+                            edges{
+                                size
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    """
+    
+    variables = {"owner":gitname}
+    result = github_api(query, variables)
+    
+    #return result
+    all_languages = set()
+    language_with_code_byte = {}
+    
+    repos = result.get('data', {}).get('user', {}).get('repositories', {}).get('nodes', [])
+
+    language_with_code_byte = {}
+
+    for repo in repos:
+        lang_nodes = repo.get('languages', {}).get('nodes', [])
+        lang_edges = repo.get('languages', {}).get('edges', [])
+        
+        for node, edge in zip(lang_nodes, lang_edges):
+            name = node['name']
+            size = edge['size']
+            
+            all_languages.update([node['name'] for node in lang_nodes]) 
+            
+            language_with_code_byte[name] = language_with_code_byte.get(name, 0) + size
+    
+    return all_languages,language_with_code_byte
 
 @app.get("/username/profile/{gitname}")
 async def get_github_profile(gitname: str):
