@@ -9,6 +9,7 @@ from models.test import Testing
 from models.commit_status import commit_status
 from models.profile import github_profile
 from models.tech_stack import tech_stack
+from models.open_source import open_source
 
 import re 
 import requests
@@ -168,6 +169,108 @@ async def get_total_commit(gitname: str):
         "total_commits": total_commits,
         "commit_per_repository": commit_per_repo
     }, 200
+
+@app.get("/username/open_source/{gitname}")
+async def get_open_source(gitname:str):
+    uid = "1"
+    
+    query = """
+    query($owner: String!){
+        user(login: $owner){
+            pullRequests(first:100){
+                nodes{
+                    baseRepository{
+                        name
+                    }
+                }
+            }
+            
+            issues(first:100){
+                nodes{
+                    repository{
+                        name
+                    }
+                }
+            }
+            
+            repositoriesContributedTo(first:100){
+                nodes{
+                    name
+                }
+            }
+
+            contributionsCollection {
+                pullRequestReviewContributions(first: 100) {
+                    nodes {
+                        pullRequest {
+                            repository {
+                                name
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    """
+    
+    variables = {"owner": gitname}
+    result = github_api(query,variables)
+    
+    pull_requests_raw = result.get('data', {}).get('user', {}).get('pullRequests', {}).get('nodes', [])
+    issues_raw = result.get('data', {}).get('user', {}).get('issues', {}).get('nodes', [])
+    contrib_raw = result.get('data', {}).get('user', {}).get('repositoriesContributedTo', {}).get('nodes', [])
+    reviews_raw = result.get('data', {}).get('user', {}).get('contributionsCollection', {}).get('pullRequestReviewContributions', {}).get('nodes', [])
+
+    pull_requests = {}
+    issues = {}
+    repositories_contributed_to = []
+    code_reviews = {}
+
+    for pr in pull_requests_raw:
+        if pr.get('baseRepository'):
+            name = pr['baseRepository']['name']
+            pull_requests[name] = pull_requests.get(name, 0) + 1
+
+    for issue in issues_raw:
+        if issue.get('repository'):
+            name = issue['repository']['name']
+            issues[name] = issues.get(name, 0) + 1
+            
+    for repo in contrib_raw:
+        if repo and repo['name']:
+            repositories_contributed_to.append(repo['name'])
+
+    for review in reviews_raw:
+        if review.get('pullRequest') and review['pullRequest'].get('repository'):
+            name = review['pullRequest']['repository']['name']
+            code_reviews[name] = code_reviews.get(name, 0) + 1
+    
+    open_source_db = session.query(open_source).filter_by(uid=uid).first()
+    
+    if open_source_db:
+        open_source_db.pull_requests = pull_requests
+        open_source_db.issues = issues
+        open_source_db.repositories_contributed_to = repositories_contributed_to
+        open_source_db.code_reviews = code_reviews
+    else:
+        open_source_db = open_source(
+            uid=uid,
+            pull_requests=pull_requests,
+            issues=issues,
+            repositories_contributed_to=repositories_contributed_to,
+            code_reviews=code_reviews
+        )
+        session.add(open_source_db)
+    
+    session.commit()
+
+    return {
+        "pull_requests": pull_requests,
+        "issues": issues,
+        "repositories_contributed_to": repositories_contributed_to,
+        "code_reviews": code_reviews
+    }
 
 @app.get("/username/technology_stack/{gitname}")
 async def get_tech_stack(gitname:str):
