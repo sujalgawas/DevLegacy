@@ -8,6 +8,7 @@ from models.users import User
 from models.test import Testing
 from models.commit_status import commit_status
 from models.profile import github_profile
+from models.tech_stack import tech_stack
 
 import re 
 import requests
@@ -220,6 +221,21 @@ async def get_tech_stack(gitname:str):
             all_languages.update([node['name'] for node in lang_nodes]) 
             
             language_with_code_byte[name] = language_with_code_byte.get(name, 0) + size
+    
+    tech_stack_db = session.query(tech_stack).filter_by(uid=uid).first()
+    
+    if tech_stack_db:
+        tech_stack_db.all_languages = all_languages
+        tech_stack_db.language_with_code_byte = language_with_code_byte
+    else:
+        tech_stack_db = tech_stack(
+            uid=uid,
+            all_languages=list(all_languages),
+            language_with_code_byte=language_with_code_byte
+        )
+        
+    session.add(tech_stack_db)
+    session.commit()
     
     return all_languages,language_with_code_byte
 
