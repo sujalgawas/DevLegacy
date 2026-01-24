@@ -45,7 +45,7 @@ class Test(BaseModel):
 
 class GithubProfile(BaseModel):
     uid : int
-    github_id : int
+    github_id : str
     github_profile : str
     name : str
     public_repo : int
@@ -156,38 +156,56 @@ async def get_total_commit(gitname: str):
 
 @app.get("/username/profile/{gitname}")
 async def get_github_profile(gitname: str):
-    uid = "1"
+    uid = "3"
     
-    url = f"https://api.github.com/users/{gitname}"
+    query = """
+        query($owner: String!){
+            user(login: $owner){
+                id
+                name 
+                url
+                
+                repositories(privacy: PUBLIC){
+                    totalCount
+                }
+                
+                followers{
+                    totalCount
+                }
+                following{
+                    totalCount
+                }
+            }
+        }
+     """
     
-    repository = github_api(url)
-    
-    
+    repository = github_api(query,{"owner":gitname})
+        
     profile = GithubProfile(uid = uid,
-                            github_id = repository['id'],
-                            github_profile = repository['url'],
-                            name = repository['name'],
-                            public_repo = repository['public_repos'],
-                            followers = repository['followers'],
-                            following = repository['following'])
-    
+                            github_id = repository['data']['user']['id'],
+                            github_profile = repository['data']['user']['url'],
+                            name = repository['data']['user']['name'],
+                            public_repo = repository['data']['user']['repositories']['totalCount'],
+                            followers = repository['data']['user']['followers']['totalCount'],
+                            following = repository['data']['user']['following']['totalCount'])
+
     profile_db = session.query(github_profile).filter_by(uid=uid).first()
     
     if profile_db:
-        profile_db.github_id = repository["id"]
-        profile_db.github_profile = repository["url"]
-        profile_db.name = repository["name"]
-        profile_db.public_repo = repository["public_repos"]
-        profile_db.followers = repository["followers"]
-        profile_db.following = repository["following"]
+        profile_db.github_id = repository['data']['user']['id']
+        profile_db.github_profile = repository['data']['user']['url']
+        profile_db.name = repository['data']['user']['name']
+        profile_db.public_repo = repository['data']['user']['repositories']['totalCount']
+        profile_db.followers = repository['data']['user']['followers']['totalCount']
+        profile_db.following = repository['data']['user']['following']['totalCount']
     else:
         profile_db = github_profile(uid = uid,
-                                github_id = repository['id'],
-                                github_profile = repository['url'],
-                                name = repository['name'],
-                                public_repo = repository['public_repos'],
-                                followers = repository['followers'],
-                                following = repository['following'])
+                                github_id = repository['data']['user']['id'],
+                                github_profile = repository['data']['user']['url'],
+                                name = repository['data']['user']['name'],
+                                public_repo = repository['data']['user']['repositories']['totalCount'],
+                                followers = repository['data']['user']['followers']['totalCount'],
+                                following = repository['data']['user']['following']['totalCount'])
         
         session.add(profile_db)
         
@@ -199,6 +217,7 @@ async def get_github_profile(gitname: str):
     else:
         return {"message":"api not found"},401
 
+"""
 #testing github api
 @app.get("/username/{gitname}")
 async def get_user_data(gitname : str):
@@ -212,7 +231,7 @@ async def get_user_data(gitname : str):
                 "data":reponse.json()},200
     else:
         return {"message" : "error api request"},401
-
+"""
 
 @app.post("/login")
 def login(login:Login):
