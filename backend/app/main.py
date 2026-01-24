@@ -97,12 +97,12 @@ def get_user_id(login):
 
 @app.get("/username/commit/{gitname}")
 async def get_total_commit(gitname: str):
-    uid = "2"
+    uid = "5"
     
     try:
         author_id = get_user_id(gitname)
     except:
-        return {"message":"Author not found"}
+        return {"message": "Author not found"}
     
     query = """
     query($owner: String!, $authorId:ID!){
@@ -124,8 +124,9 @@ async def get_total_commit(gitname: str):
         }
     }
     """
-    variables = {"owner":gitname, "authorId":author_id}
-    result = github_api(query,variables)
+    
+    variables = {"owner": gitname, "authorId": author_id}
+    result = github_api(query, variables)
     
     total_commits = 0
     commit_per_repo = {}
@@ -136,19 +137,33 @@ async def get_total_commit(gitname: str):
         repo_name = repo['name']
         count = 0
         
-        if repo['defaultBranchRef'] and repo['defaultBranchRef']['target']['history']:
+        if (repo.get('defaultBranchRef') and 
+            repo['defaultBranchRef'].get('target') and 
+            repo['defaultBranchRef']['target'].get('history')):
+            
             count = repo['defaultBranchRef']['target']['history']['totalCount']
             
         if count > 0:
             commit_per_repo[repo_name] = count
             total_commits += count
 
-    user_commit_metadata = commit_status(uid=uid,total_commits=total_commits,commits_per_repo=commit_per_repo)
-    session.add(user_commit_metadata)
+    user_commit_metadata = session.query(commit_status).filter_by(uid=uid).first()
+
+    if user_commit_metadata:
+        user_commit_metadata.total_commits = total_commits
+        user_commit_metadata.commits_per_repo = commit_per_repo
+    else:
+        user_commit_metadata = commit_status(
+            uid=uid,
+            total_commits=total_commits,
+            commits_per_repo=commit_per_repo
+        )
+        session.add(user_commit_metadata)
+
     session.commit()
 
     return {
-        "message": "total commits found",
+        "message": "total commits processed successfully",
         "total_commits": total_commits,
         "commit_per_repository": commit_per_repo
     }, 200
