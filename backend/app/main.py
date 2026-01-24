@@ -10,11 +10,13 @@ from models.commit_status import commit_status
 from models.profile import github_profile
 from models.tech_stack import tech_stack
 from models.open_source import open_source
+from models.consistency import consistency_status
 
 import re 
 import requests
 import os
 from dotenv import load_dotenv
+import datetime
 
 load_dotenv()
 github_client_id = os.getenv("github_client_id")
@@ -169,7 +171,111 @@ async def get_total_commit(gitname: str):
         "total_commits": total_commits,
         "commit_per_repository": commit_per_repo
     }, 200
+from datetime import datetime, timedelta
 
+@app.get("/username/consistency/{gitname}")
+async def get_consistency(gitname: str):
+    uid = "6"
+    
+    query = """
+    query($owner: String!) {
+        user(login: $owner) {
+            contributionsCollection {
+                contributionCalendar {
+                    totalContributions
+                    weeks {
+                        contributionDays {
+                            date
+                            contributionCount
+                        }
+                    }
+                }
+            }
+        }
+    }
+    """
+    
+    variables = {"owner": gitname}
+    
+    try:
+        result = github_api(query, variables)
+    except Exception as e:
+         return {"message": "Error connecting to GitHub API", "error": str(e)}
+
+    user_data = result.get('data', {}).get('user')
+    
+    if not user_data:
+        return {"message": "User not found on GitHub"}
+        
+    calendar = user_data.get('contributionsCollection', {}).get('contributionCalendar', {})
+    
+    total_contributions = calendar.get('totalContributions', 0)
+    weeks = calendar.get('weeks', [])
+    
+    all_days = []
+    for week in weeks:
+        for day in week['contributionDays']:
+            all_days.append(day)
+            
+    longest_streak = 0
+    current_streak = 0
+    current_counting_streak = 0
+    active_days_count = 0
+    
+    
+    for day in all_days:
+        count = day['contributionCount']
+        if count > 0:
+            active_days_count += 1
+            current_counting_streak += 1
+            if current_counting_streak > longest_streak:
+                longest_streak = current_counting_streak
+        else:
+            current_counting_streak = 0
+
+    
+    today_str = datetime.utcnow().strftime('%Y-%m-%d')
+    
+    past_days = [d for d in all_days if d['date'] <= today_str]
+    
+    if past_days:
+        for day in reversed(past_days):
+            if day['contributionCount'] > 0:
+                current_streak += 1
+            else:
+                if day['date'] == today_str:
+                    continue 
+                break
+
+    user_consistency = session.query(consistency_status).filter_by(uid=uid).first()
+
+    if user_consistency:
+        user_consistency.total_contributions = total_contributions
+        user_consistency.longest_streak = longest_streak
+        user_consistency.current_streak = current_streak
+        user_consistency.active_days = active_days_count
+        user_consistency.last_updated = datetime.utcnow()
+    else:
+        user_consistency = consistency_status(
+            uid=uid,
+            total_contributions=total_contributions,
+            longest_streak=longest_streak,
+            current_streak=current_streak,
+            active_days=active_days_count,
+            last_updated=datetime.utcnow()
+        )
+        session.add(user_consistency)
+
+    session.commit()
+
+    return {
+        "message": "Consistency data processed",
+        "total_contributions": total_contributions,
+        "longest_streak": longest_streak,
+        "current_streak": current_streak,
+        "active_days": active_days_count
+    }
+    
 @app.get("/username/open_source/{gitname}")
 async def get_open_source(gitname:str):
     uid = "1"
@@ -304,8 +410,7 @@ async def get_tech_stack(gitname:str):
     
     variables = {"owner":gitname}
     result = github_api(query, variables)
-    
-    #return result
+
     all_languages = set()
     language_with_code_byte = {}
     
