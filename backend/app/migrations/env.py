@@ -11,6 +11,7 @@ from models import profile
 from models import tech_stack
 from models import open_source
 from models import consistency
+from models import document_stat
 from db.base import Base
 
 # this is the Alembic Config object, which provides

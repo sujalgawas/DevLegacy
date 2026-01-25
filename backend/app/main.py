@@ -11,7 +11,7 @@ from models.profile import github_profile
 from models.tech_stack import tech_stack
 from models.open_source import open_source
 from models.consistency import consistency_status
-
+from models.document_stat import document_stats
 import re 
 import requests
 import os
@@ -446,6 +446,83 @@ async def get_tech_stack(gitname:str):
     session.commit()
     
     return all_languages,language_with_code_byte
+
+@app.get("/user_name/documentation/{gitname}")
+async def get_documenation_stats(gitname : str):
+    uid = "1"
+    
+    try:
+        author_id = get_user_id(gitname)
+    except:
+        return {"message": "Author not found"}
+    
+    query = """
+        query($owner: String!){
+            user(login: $owner){
+                repositories(first:100,ownerAffiliations: OWNER, isFork: false){
+                    nodes{
+                        name
+                        object(expression: "HEAD:README.md"){
+                            ... on Blob{
+                                text
+                            }   
+                        }
+                    }
+                }
+            }
+        }
+    """
+
+    variables = {"owner": gitname}
+    result = github_api(query, variables)
+    
+    repos = result.get('data', {}).get('user', {}).get('repositories', {}).get('nodes', [])
+    
+    repo_readme_stats = {}
+    total_readme_lines = 0
+    repo_count = 0
+    
+    for repo in repos:
+        name = repo['name']
+        readme_object = repo.get('object')
+        
+        line_count = 0
+        
+        if readme_object and 'text' in readme_object:
+            
+            content = readme_object['text']
+
+            line_count = len(content.splitlines())
+            
+        if line_count > 0:
+            repo_readme_stats[name] = line_count
+            total_readme_lines += line_count
+            repo_count += 1
+            
+    avg_lines = int(total_readme_lines / repo_count) if repo_count > 0 else 0
+
+    #code to code ration per repo and total
+    
+    return avg_lines
+
+"""
+    #data cleaning
+    
+    #document_stat
+    
+    #database 
+    document_stats_db = session.query(document_stats).filter(uid=uid).first()
+    
+    if document_stats_db:
+        #assign values
+    else:
+        document_stats_db = document_stats()
+    
+    session.add(document_stats_db)
+    session.commit()
+    
+    return document_stat
+"""
 
 @app.get("/username/profile/{gitname}")
 async def get_github_profile(gitname: str):
