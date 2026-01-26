@@ -447,6 +447,102 @@ async def get_tech_stack(gitname:str):
     
     return all_languages,language_with_code_byte
 
+@app.get("/user_name/code/{gitname}")
+async def get_code(gitname: str):
+    
+    valid_extensions = (
+        ".py", ".js", ".java", ".c", ".cpp", ".cc", ".cxx", ".go", 
+        ".ts", ".tsx", ".php", ".cs", ".rs", ".sql", "Dockerfile", 
+        ".dockerfile", ".kt", ".html", ".css", ".lua", ".ipynb"
+    )
+
+    query = """
+    query($owner: String!) {
+        user(login: $owner) {
+            pinnedItems(first: 5, types: REPOSITORY) {
+                edges {
+                    node {
+                        ... on Repository {
+                            name
+                            object(expression: "HEAD:") {
+                                ... on Tree {
+                                    entries {
+                                        name
+                                        type
+                                        object {
+                                            ... on Blob { text }
+                                            ... on Tree {
+                                                entries {
+                                                    name
+                                                    type
+                                                    object {
+                                                        ... on Blob { text }
+                                                        ... on Tree {
+                                                            entries {
+                                                                name
+                                                                type
+                                                                object {
+                                                                    ... on Blob { text }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    """
+
+    variables = {"owner": gitname}
+    
+    result = github_api(query, variables)
+    
+    repos = result.get("data", {}).get("user", {}).get("pinnedItems", {}).get("edges", [])
+    
+    code_data = {}
+
+    def extract_files_from_entries(entries_list):
+        found_code = []
+        for entry in entries_list:
+            file_name = entry.get("name", "")
+            file_type = entry.get("type", "")
+                        
+            if file_type == "blob":
+                if file_name.endswith(valid_extensions):
+                    text = entry.get("object", {}).get("text", "")
+                    if text:
+                        found_code.append(text)
+            
+            elif file_type == "tree":
+                sub_entries = entry.get("object", {}).get("entries", [])
+                if sub_entries:
+                    found_code.extend(extract_files_from_entries(sub_entries))
+                    
+        return found_code
+
+    for repo in repos:
+        repo_node = repo.get("node", {})
+        repo_name = repo_node.get("name")
+    
+        root_entries = repo_node.get("object", {}).get("entries", [])
+
+        repo_files = extract_files_from_entries(root_entries)
+        
+        if repo_files:
+            code_data[repo_name] = repo_files
+
+    #file stucture
+    
+    return code_data
+
 @app.get("/user_name/documentation/{gitname}")
 async def get_documenation_stats(gitname : str):
     uid = "1"
@@ -501,7 +597,7 @@ async def get_documenation_stats(gitname : str):
             
     avg_lines = int(total_readme_lines / repo_count) if repo_count > 0 else 0
 
-    #code to code ration per repo and total
+    #code to comment ration per repo and total comment lines
     
     return avg_lines
 
