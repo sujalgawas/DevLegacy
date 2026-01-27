@@ -551,7 +551,7 @@ async def get_code(gitname: str):
     else:
         code_db = Code(uid = uid,
                        code = code_data)
-    session.add(code_db)
+        session.add(code_db)
     session.commit()
     return code_data
 
@@ -567,7 +567,7 @@ def get_comment_to_code(url:str):
             return None
         
         result = subprocess.run(
-            ["cloc",temp_dir,"--json"],
+            ["cloc",temp_dir,"--json","--by-file"],
             capture_output=True,
             text = True
         )
@@ -576,9 +576,22 @@ def get_comment_to_code(url:str):
         
         try:
             data = json.loads(result.stdout)
-            return data.get("SUM")
+            data_for_file_struct = data.copy()
+            del data_for_file_struct["header"]
+            file_structure = data_for_file_struct.keys()
+            file = dir_parser(file_structure,temp_dir)
+            return data.get("SUM"),file
         except json.JSONDecodeError:
             return None
+
+def dir_parser(directories,temp_dir):
+    final_dir = []
+    for path in directories:
+        if temp_dir in path:
+            temp_directory = os.path.relpath(path,temp_dir)
+            final_dir.append(temp_directory) 
+        
+    return final_dir
         
 
 @app.get("/user_name/documentation/{gitname}")
@@ -646,43 +659,40 @@ async def get_documenation_stats(gitname : str):
             
     avg_lines_readme = int(total_readme_lines / repo_count) if repo_count > 0 else 0
 
-    #code to comment ration per repo and total comment lines
     pin_repo = result.get('data', {}).get('user', {}).get("pinnedItems",{}).get("edges",[])
     
     total_code = 0
     commented_code = 0
-    
+    final_dir = {}
     for repo in pin_repo:
         url = repo.get("node",{}).get("url",[])
         name = repo.get("node",{}).get("name",[])
-        result = get_comment_to_code(url)
-        
+        result, file = get_comment_to_code(url)
+        final_dir[name] = file
         total_code += result['code']
         commented_code += result['comment']
     
     comment_percentage = 100/(total_code + commented_code) * commented_code
     comment_pre_repos = {"total_code":total_code,"commented_code":commented_code}
-    
-    return avg_lines_readme,comment_percentage,comment_pre_repos
 
-"""
-    #data cleaning
-    
-    #document_stat
-    
-    #database 
-    document_stats_db = session.query(document_stats).filter(uid=uid).first()
+    document_stats_db = session.query(document_stats).filter_by(uid=uid).first()
     
     if document_stats_db:
-        #assign values
+        document_stats_db.uid = uid
+        document_stats_db.avg_lines_readme = avg_lines_readme
+        document_stats_db.comment_percentage = comment_percentage
+        document_stats_db.comment_to_repos = comment_pre_repos
+        document_stats_db.final_dir = final_dir
     else:
-        document_stats_db = document_stats()
-    
-    session.add(document_stats_db)
+        document_stats_db = document_stats(uid = uid,avg_lines_readme=avg_lines_readme,
+                                           comment_percentage=comment_percentage,comment_to_repos=comment_pre_repos,
+                                           final_dir = final_dir)
+
+        session.add(document_stats_db)
+        
     session.commit()
     
-    return document_stat
-"""
+    return avg_lines_readme,comment_percentage,comment_pre_repos,final_dir
 
 @app.get("/username/profile/{gitname}")
 async def get_github_profile(gitname: str):
