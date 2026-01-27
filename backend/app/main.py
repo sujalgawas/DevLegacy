@@ -12,6 +12,8 @@ from models.tech_stack import tech_stack
 from models.open_source import open_source
 from models.consistency import consistency_status
 from models.document_stat import document_stats
+from models.code import Code
+
 import re 
 import requests
 import os
@@ -451,7 +453,7 @@ async def get_tech_stack(gitname:str):
 
 @app.get("/user_name/code/{gitname}")
 async def get_code(gitname: str):
-    
+    uid = "1"
     valid_extensions = (
         ".py", ".js", ".java", ".c", ".cpp", ".cc", ".cxx", ".go", 
         ".ts", ".tsx", ".php", ".cs", ".rs", ".sql", "Dockerfile", 
@@ -541,8 +543,16 @@ async def get_code(gitname: str):
         if repo_files:
             code_data[repo_name] = repo_files
 
-    #file stucture
+    code_db = session.query(Code).filter_by(uid = uid).first()
     
+    if code_db:
+        code_db.uid = uid
+        code_db.code = code_data
+    else:
+        code_db = Code(uid = uid,
+                       code = code_data)
+    session.add(code_db)
+    session.commit()
     return code_data
 
 def get_comment_to_code(url:str):
@@ -599,6 +609,7 @@ async def get_documenation_stats(gitname : str):
                     node{
                         ... on Repository{
                             url   
+                            name
                         }
                     }   
                 }
@@ -640,17 +651,19 @@ async def get_documenation_stats(gitname : str):
     
     total_code = 0
     commented_code = 0
+    
     for repo in pin_repo:
         url = repo.get("node",{}).get("url",[])
-        
+        name = repo.get("node",{}).get("name",[])
         result = get_comment_to_code(url)
         
         total_code += result['code']
         commented_code += result['comment']
     
-    commented_ratio = 100/(total_code + commented_code) * commented_code
+    comment_percentage = 100/(total_code + commented_code) * commented_code
+    comment_pre_repos = {"total_code":total_code,"commented_code":commented_code}
     
-    return avg_lines_readme,commented_ratio
+    return avg_lines_readme,comment_percentage,comment_pre_repos
 
 """
     #data cleaning

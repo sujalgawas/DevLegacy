@@ -3,11 +3,9 @@ from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 from db.base import Base
 
 #================ database models start ================#
-class document_stats(Base):
-    __tablename__ = 'document_stats'
+class Code(Base):
+    __tablename__ = 'code'
     uid = Column(String, primary_key=True)
-    comment_percentage = Column(Integer)
-    comment_to_repos = Column(JSONB)
-    documentation = Column(Integer)
+    code = Column(JSONB)
     
 #================ database models end ================#
