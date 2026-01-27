@@ -17,6 +17,8 @@ import requests
 import os
 from dotenv import load_dotenv
 import datetime
+import subprocess
+import tempfile
 
 load_dotenv()
 github_client_id = os.getenv("github_client_id")
@@ -543,6 +545,32 @@ async def get_code(gitname: str):
     
     return code_data
 
+def get_comment_to_code(url:str):
+    with tempfile.TemporaryDirectory() as temp_dir:
+        try:
+            subprocess.run(["git","clone","--depth","1","--single-branch",url,temp_dir],
+                        check=True,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL
+                        )
+        except subprocess.CalledProcessError:
+            return None
+        
+        result = subprocess.run(
+            ["cloc",temp_dir,"--json"],
+            capture_output=True,
+            text = True
+        )
+        
+        import json
+        
+        try:
+            data = json.loads(result.stdout)
+            return data.get("SUM")
+        except json.JSONDecodeError:
+            return None
+        
+
 @app.get("/user_name/documentation/{gitname}")
 async def get_documenation_stats(gitname : str):
     uid = "1"
@@ -565,6 +593,16 @@ async def get_documenation_stats(gitname : str):
                         }
                     }
                 }
+                
+                pinnedItems(first:5, types: REPOSITORY){
+                edges{
+                    node{
+                        ... on Repository{
+                            url   
+                        }
+                    }   
+                }
+            }
             }
         }
     """
@@ -595,11 +633,24 @@ async def get_documenation_stats(gitname : str):
             total_readme_lines += line_count
             repo_count += 1
             
-    avg_lines = int(total_readme_lines / repo_count) if repo_count > 0 else 0
+    avg_lines_readme = int(total_readme_lines / repo_count) if repo_count > 0 else 0
 
     #code to comment ration per repo and total comment lines
+    pin_repo = result.get('data', {}).get('user', {}).get("pinnedItems",{}).get("edges",[])
     
-    return avg_lines
+    total_code = 0
+    commented_code = 0
+    for repo in pin_repo:
+        url = repo.get("node",{}).get("url",[])
+        
+        result = get_comment_to_code(url)
+        
+        total_code += result['code']
+        commented_code += result['comment']
+    
+    commented_ratio = 100/(total_code + commented_code) * commented_code
+    
+    return avg_lines_readme,commented_ratio
 
 """
     #data cleaning
