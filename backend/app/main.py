@@ -1,9 +1,13 @@
 from fastapi import FastAPI
+
 from pydantic import BaseModel
 from firebase_admin import credentials,initialize_app,auth
+
 import json
+
 from sqlalchemy import create_engine,Column,String,Integer
 from sqlalchemy.orm import sessionmaker
+
 from models.users import User
 from models.test import Testing
 from models.commit_status import commit_status
@@ -36,37 +40,6 @@ cred = credentials.Certificate(path)
 initialize_app(cred)
 
 app = FastAPI()
-
-#================ FastAPI BaseModel Start ================#
-class Login(BaseModel):
-    token : str
-    
-class SignUp(BaseModel):
-    UserName : str
-    Email : str
-    Password: str
-
-class Test(BaseModel):
-    name : str
-    age : str
-    temp : int
-
-class GithubProfile(BaseModel):
-    uid : int
-    github_id : str
-    github_profile : str
-    name : str
-    public_repo : int
-    followers : int
-    following : int
-    
-"""
-class User_Data(BaseModel):
-    followers : int
-    repos : int 
-    total_commits : int
-"""
-#================ FastAPI BaseModel End ================#
 
 #helper function
 def verify_token(token):
@@ -756,58 +729,3 @@ async def get_github_profile(gitname: str):
                 "profile": profile},200
     else:
         return {"message":"api not found"},401
-
-"""
-#testing github api
-@app.get("/username/{gitname}")
-async def get_user_data(gitname : str):
-    
-    url = f"https://api.github.com/search/users?q={gitname}"
-    
-    reponse = github_api(url)
-    
-    if reponse.status_code == 200:
-        return {"message" : "api works",
-                "data":reponse.json()},200
-    else:
-        return {"message" : "error api request"},401
-"""
-
-@app.post("/login")
-def login(login:Login):
-    uid = verify_token(login.token)
-    
-    #postgres SQL session activate 
-    
-    if uid:
-        return {"message" : "user logged in successfull"},200
-    else:
-        return {"message" : "Error occured while loggin in"},401
-
-@app.post("/test")
-def test(test:Test):
-    current_test = Testing(name = test.name,age = test.age,temp = test.temp)
-    session.add(current_test)
-    session.commit()
-    
-    return{"message":"working"},200
-
-@app.post("/signup")
-def signup(signup:SignUp):
-    user = auth.create_user(email= signup.Email,password=signup.Password,
-                            display_name = signup.UserName)
-    current_uid = user.uid
-    
-    user = User(uid = current_uid,email = signup.Email, username = signup.UserName)
-    session.add(user)
-    session.commit()
-    
-    if user.uid:
-        return {"message":"user created"},200
-    else:
-        return {"message":"Error creating user"},401
-    
-
-@app.get("/")
-def home():
-    return {"message":"home page"}
