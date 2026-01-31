@@ -25,6 +25,10 @@ from dotenv import load_dotenv
 import datetime
 import subprocess
 import tempfile
+from fastapi import FastAPI
+from schemas.User import Login, SignUp, Test
+        
+app = FastAPI()
 
 load_dotenv()
 github_client_id = os.getenv("github_client_id")
