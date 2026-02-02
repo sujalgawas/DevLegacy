@@ -1,5 +1,5 @@
 from sqlalchemy import Column,Integer,String
-from db.base import Base 
+from app.db.base import Base 
 
 class github_profile(Base):
     __tablename__ = "github_profile"

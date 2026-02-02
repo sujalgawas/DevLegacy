@@ -1,7 +1,7 @@
 import datetime
 
-from sqlachemy.orm import sessionmaker
-from sqlachemy import create_engine,Column,Integer,String
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine,Column,Integer,String
 
 from app.models.commit_status import commit_status
 from app.models.profile import github_profile

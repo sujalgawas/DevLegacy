@@ -1,6 +1,6 @@
 from sqlalchemy import Column, String, Integer,DateTime
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY
-from db.base import Base
+from app.db.base import Base
 
 #================ database models start ================#
 class Code(Base):

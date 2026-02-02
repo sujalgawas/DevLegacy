@@ -1,11 +1,11 @@
-from fastAPI import APIRouter,Depends, HTTPException, status
+from fastapi import APIRouter,Depends, HTTPException, status
 from app.schemas.User import Login, SignUp, Test
-from main import get_session #from crud.user import get_session
+from app.crud.User import get_session
 
 from app.models.users import User
 from app.models.test import Testing
 
-from helper_function import verify_token
+from app.services.helper_function import verify_token
 from firebase_admin import auth
 
 router = APIRouter()

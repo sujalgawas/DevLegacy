@@ -4,16 +4,16 @@ from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
 from alembic import context
-from models import users
-from models import test
-from models import commit_status
-from models import profile
-from models import tech_stack
-from models import open_source
-from models import consistency
-from models import document_stat
-from models import code
-from db.base import Base
+from app.models import users
+from app.models import test
+from app.models import commit_status
+from app.models import profile
+from app.models import tech_stack
+from app.models import open_source
+from app.models import consistency
+from app.models import document_stat
+from app.models import code
+from app.db.base import Base
 
 
 # this is the Alembic Config object, which provides
