@@ -3,13 +3,13 @@ import datetime
 from sqlachemy.orm import sessionmaker
 from sqlachemy import create_engine,Column,Integer,String
 
-from models.commit_status import commit_status
-from models.profile import github_profile
-from models.tech_stack import tech_stack
-from models.open_source import open_source
-from models.consistency import consistency_status
-from models.document_stat import document_stats
-from models.code import Code
+from app.models.commit_status import commit_status
+from app.models.profile import github_profile
+from app.models.tech_stack import tech_stack
+from app.models.open_source import open_source
+from app.models.consistency import consistency_status
+from app.models.document_stat import document_stats
+from app.models.code import Code
 
 engine = create_engine("postgresql://postgres:1234@localhost:5432/dev")
 
