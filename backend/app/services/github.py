@@ -3,7 +3,9 @@ from app.crud.User import update_code, update_commit_status, update_document_sta
 from app.services.helper_function import get_user_id
 from app.services.helper_function import github_api,get_user_id
 
-from datetime import datetime
+from app.services.cloc import get_comment_to_code
+
+from datetime import datetime, timezone
 
 from app.schemas.User import GithubProfile
 
@@ -120,8 +122,7 @@ def get_consistency(uid: str, gitname: str):
         else:
             current_counting_streak = 0
 
-    
-    today_str = datetime.utcnow().strftime('%Y-%m-%d')
+    today_str = datetime.now(timezone.utc).strftime('%Y-%m-%d')
     
     past_days = [d for d in all_days if d['date'] <= today_str]
     

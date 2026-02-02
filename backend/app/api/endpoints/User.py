@@ -11,10 +11,6 @@ from firebase_admin import auth
 router = APIRouter()
 session = get_session()
 
-@router.get('/username/analysis/{gitname}')
-async def get_anaylsis(gitname:str):
-    pass
-
 
 @router.post("/login")
 def login(login:Login):
