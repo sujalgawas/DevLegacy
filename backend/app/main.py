@@ -8,19 +8,25 @@ import json
 from sqlalchemy import create_engine,Column,String,Integer
 from sqlalchemy.orm import sessionmaker
 
-from models.commit_status import commit_status
-from models.profile import github_profile
-from models.tech_stack import tech_stack
-from models.open_source import open_source
-from models.consistency import consistency_status
-from models.document_stat import document_stats
-from models.code import Code
+from crud.User import update_commit_status
+from crud.User import update_github_profile
+from crud.User import update_tech_stack
+from crud.User import update_open_source
+from crud.User import update_consistency_status
+from crud.User import update_document_status
+from crud.User import update_code
+
+from schemas.User import GithubProfile
+
+from services.cloc import get_comment_to_code
 
 import re 
 import requests
 import os
 from dotenv import load_dotenv
 import datetime
+from datetime import datetime, timedelta
+
 import subprocess
 import tempfile
 from fastapi import FastAPI
@@ -37,14 +43,6 @@ github_client_id = os.getenv("github_client_id")
 github_secret = os.getenv("github_secret")
 github_access_token = os.getenv("github_access_token")
 
-engine = create_engine("postgresql://postgres:1234@localhost:5432/dev")
-
-def get_session():
-    Session = sessionmaker(engine)
-    session = Session()
-    return session
-
-session = get_session()
 
 path = "../serviceAccountKey.json"
 cred = credentials.Certificate(path)
@@ -103,29 +101,17 @@ async def get_total_commit(gitname: str):
         if count > 0:
             commit_per_repo[repo_name] = count
             total_commits += count
-
-    user_commit_metadata = session.query(commit_status).filter_by(uid=uid).first()
-
-    if user_commit_metadata:
-        user_commit_metadata.total_commits = total_commits
-        user_commit_metadata.commits_per_repo = commit_per_repo
-    else:
-        user_commit_metadata = commit_status(
-            uid=uid,
-            total_commits=total_commits,
-            commits_per_repo=commit_per_repo
-        )
-        session.add(user_commit_metadata)
-
-    session.commit()
+    try:
+        update_commit_status(uid=uid,total_commits=total_commits,commit_per_repo=commit_per_repo)
+    except Exception as e:
+        return f"Error while updating database {e}"
 
     return {
         "message": "total commits processed successfully",
         "total_commits": total_commits,
         "commit_per_repository": commit_per_repo
     }, 200
-from datetime import datetime, timedelta
-
+    
 @app.get("/username/consistency/{gitname}")
 async def get_consistency(gitname: str):
     uid = "6"
@@ -199,27 +185,13 @@ async def get_consistency(gitname: str):
                 if day['date'] == today_str:
                     continue 
                 break
-
-    user_consistency = session.query(consistency_status).filter_by(uid=uid).first()
-
-    if user_consistency:
-        user_consistency.total_contributions = total_contributions
-        user_consistency.longest_streak = longest_streak
-        user_consistency.current_streak = current_streak
-        user_consistency.active_days = active_days_count
-        user_consistency.last_updated = datetime.utcnow()
-    else:
-        user_consistency = consistency_status(
-            uid=uid,
-            total_contributions=total_contributions,
-            longest_streak=longest_streak,
-            current_streak=current_streak,
-            active_days=active_days_count,
-            last_updated=datetime.utcnow()
-        )
-        session.add(user_consistency)
-
-    session.commit()
+    
+    try:
+        update_consistency_status(uid = uid, total_contributions=total_contributions,
+                                  longest_streak=longest_streak,current_streak=current_streak,
+                                  active_days_count=active_days_count)
+    except Exception as e:
+        return f"Error updating databse {e}"
 
     return {
         "message": "Consistency data processed",
@@ -305,25 +277,13 @@ async def get_open_source(gitname:str):
             name = review['pullRequest']['repository']['name']
             code_reviews[name] = code_reviews.get(name, 0) + 1
     
-    open_source_db = session.query(open_source).filter_by(uid=uid).first()
+    try:
+        update_open_source(uid=uid,pull_requests=pull_requests,
+                           issues=issues,repositories_contributed_to=repositories_contributed_to,
+                           code_reviews=code_reviews)
+    except Exception as e:
+        return f"Error while updating database {e}"
     
-    if open_source_db:
-        open_source_db.pull_requests = pull_requests
-        open_source_db.issues = issues
-        open_source_db.repositories_contributed_to = repositories_contributed_to
-        open_source_db.code_reviews = code_reviews
-    else:
-        open_source_db = open_source(
-            uid=uid,
-            pull_requests=pull_requests,
-            issues=issues,
-            repositories_contributed_to=repositories_contributed_to,
-            code_reviews=code_reviews
-        )
-        session.add(open_source_db)
-    
-    session.commit()
-
     return {
         "pull_requests": pull_requests,
         "issues": issues,
@@ -382,22 +342,13 @@ async def get_tech_stack(gitname:str):
             all_languages.update([node['name'] for node in lang_nodes]) 
             
             language_with_code_byte[name] = language_with_code_byte.get(name, 0) + size
-    
-    tech_stack_db = session.query(tech_stack).filter_by(uid=uid).first()
-    
-    if tech_stack_db:
-        tech_stack_db.all_languages = all_languages
-        tech_stack_db.language_with_code_byte = language_with_code_byte
-    else:
-        tech_stack_db = tech_stack(
-            uid=uid,
-            all_languages=list(all_languages),
-            language_with_code_byte=language_with_code_byte
-        )
         
-    session.add(tech_stack_db)
-    session.commit()
-    
+    try:
+        update_tech_stack(uid = uid,all_languages=all_languages,
+                          language_with_code_byte=language_with_code_byte)
+    except Exception as e:
+        return f"Error with updating databse {e}"
+        
     return all_languages,language_with_code_byte
 
 @app.get("/user_name/code/{gitname}")
@@ -491,56 +442,13 @@ async def get_code(gitname: str):
         
         if repo_files:
             code_data[repo_name] = repo_files
-
-    code_db = session.query(Code).filter_by(uid = uid).first()
     
-    if code_db:
-        code_db.uid = uid
-        code_db.code = code_data
-    else:
-        code_db = Code(uid = uid,
-                       code = code_data)
-        session.add(code_db)
-    session.commit()
+    try:
+        update_code(uid=uid,code_data=code_data)
+    except Exception as e:
+        return f"Error while updating database {e}"
+
     return code_data
-
-def get_comment_to_code(url:str):
-    with tempfile.TemporaryDirectory() as temp_dir:
-        try:
-            subprocess.run(["git","clone","--depth","1","--single-branch",url,temp_dir],
-                        check=True,
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL
-                        )
-        except subprocess.CalledProcessError:
-            return None
-        
-        result = subprocess.run(
-            ["cloc",temp_dir,"--json","--by-file"],
-            capture_output=True,
-            text = True
-        )
-        
-        import json
-        
-        try:
-            data = json.loads(result.stdout)
-            data_for_file_struct = data.copy()
-            del data_for_file_struct["header"]
-            file_structure = data_for_file_struct.keys()
-            file = dir_parser(file_structure,temp_dir)
-            return data.get("SUM"),file
-        except json.JSONDecodeError:
-            return None
-
-def dir_parser(directories,temp_dir):
-    final_dir = []
-    for path in directories:
-        if temp_dir in path:
-            temp_directory = os.path.relpath(path,temp_dir)
-            final_dir.append(temp_directory) 
-        
-    return final_dir
         
 
 @app.get("/user_name/documentation/{gitname}")
@@ -623,23 +531,13 @@ async def get_documenation_stats(gitname : str):
     
     comment_percentage = 100/(total_code + commented_code) * commented_code
     comment_pre_repos = {"total_code":total_code,"commented_code":commented_code}
-
-    document_stats_db = session.query(document_stats).filter_by(uid=uid).first()
     
-    if document_stats_db:
-        document_stats_db.uid = uid
-        document_stats_db.avg_lines_readme = avg_lines_readme
-        document_stats_db.comment_percentage = comment_percentage
-        document_stats_db.comment_to_repos = comment_pre_repos
-        document_stats_db.final_dir = final_dir
-    else:
-        document_stats_db = document_stats(uid = uid,avg_lines_readme=avg_lines_readme,
-                                           comment_percentage=comment_percentage,comment_to_repos=comment_pre_repos,
-                                           final_dir = final_dir)
-
-        session.add(document_stats_db)
-        
-    session.commit()
+    try:
+        update_document_status(uid=uid,avg_lines_readme=avg_lines_readme,
+                               comment_percentage=comment_percentage,
+                               comment_pre_repos=comment_pre_repos,final_dir=final_dir)
+    except Exception as e:
+        return f"Error updating database {e}"
     
     return avg_lines_readme,comment_percentage,comment_pre_repos,final_dir
 
@@ -678,28 +576,11 @@ async def get_github_profile(gitname: str):
                             followers = repository['data']['user']['followers']['totalCount'],
                             following = repository['data']['user']['following']['totalCount'])
 
-    profile_db = session.query(github_profile).filter_by(uid=uid).first()
-    
-    if profile_db:
-        profile_db.github_id = repository['data']['user']['id']
-        profile_db.github_profile = repository['data']['user']['url']
-        profile_db.name = repository['data']['user']['name']
-        profile_db.public_repo = repository['data']['user']['repositories']['totalCount']
-        profile_db.followers = repository['data']['user']['followers']['totalCount']
-        profile_db.following = repository['data']['user']['following']['totalCount']
-    else:
-        profile_db = github_profile(uid = uid,
-                                github_id = repository['data']['user']['id'],
-                                github_profile = repository['data']['user']['url'],
-                                name = repository['data']['user']['name'],
-                                public_repo = repository['data']['user']['repositories']['totalCount'],
-                                followers = repository['data']['user']['followers']['totalCount'],
-                                following = repository['data']['user']['following']['totalCount'])
+    try:
+        update_github_profile(uid,profile)
+    except Exception as e:
+        return f"Error while updating database {e}"
         
-        session.add(profile_db)
-        
-    session.commit()
-    
     if profile:
         return {"message":"profile data is saved",
                 "profile": profile},200
