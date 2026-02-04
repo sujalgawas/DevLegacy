@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 
 from app.schemas.User import GithubProfile
 
-def get_total_commit(uid: str, gitname: str,q):    
+def get_total_commit(uid: str, gitname: str):    
     try:
         author_id = get_user_id(gitname)
     except:
@@ -64,11 +64,10 @@ def get_total_commit(uid: str, gitname: str,q):
 
     result =  {"total_commits": total_commits, "commit_per_repo": commit_per_repo}
     
-    q.put(result)
-
+    return result 
     
 
-def get_consistency(uid: str, gitname: str,q):
+def get_consistency(uid: str, gitname: str):
     query = """
     query($owner: String!) {
         user(login: $owner) {
@@ -151,9 +150,9 @@ def get_consistency(uid: str, gitname: str,q):
             "current_streak": current_streak,
             "active_days_count": active_days_count
             }   
-    q.put(result)
+    return result
 
-def get_open_source(uid: str, gitname: str,q):
+def get_open_source(uid: str, gitname: str):
     query = """
     query($owner: String!){
         user(login: $owner){
@@ -239,9 +238,9 @@ def get_open_source(uid: str, gitname: str,q):
         "repositories_contributed_to": repositories_contributed_to,
         "code_reviews": code_reviews
     }
-    q.put(result)
+    return result  
 
-def get_tech_stack(uid: str, gitname: str,q):    
+def get_tech_stack(uid: str, gitname: str):    
     query = """
         query($owner: String!){
             user(login: $owner){
@@ -292,9 +291,9 @@ def get_tech_stack(uid: str, gitname: str,q):
         return f"Error with updating databse {e}"
         
     result = {"all_languages": all_languages, "language_with_code_byte": language_with_code_byte}
-    q.put(result)
+    return result 
 
-def get_code(uid:str, gitname: str,q):
+def get_code(uid:str, gitname: str):
     valid_extensions = (
         ".py", ".js", ".java", ".c", ".cpp", ".cc", ".cxx", ".go", 
         ".ts", ".tsx", ".php", ".cs", ".rs", ".sql", "Dockerfile", 
@@ -390,9 +389,9 @@ def get_code(uid:str, gitname: str,q):
         return f"Error while updating database {e}"
 
     result = {"code_data": code_data}
-    q.put(result)
+    return result
     
-def get_documenation_stats(uid:str,gitname : str,q):    
+def get_documenation_stats(uid:str,gitname : str):    
     query = """
         query($owner: String!){
             user(login: $owner){
@@ -476,9 +475,9 @@ def get_documenation_stats(uid:str,gitname : str,q):
             "comment_percentage": comment_percentage,
             "comment_pre_repos": comment_pre_repos,
             "final_dir": final_dir}
-    q.put(result)
+    return result
     
-def get_github_profile(uid:str,gitname: str,q):
+def get_github_profile(uid:str,gitname: str):
     
     query = """
         query($owner: String!){
@@ -516,4 +515,4 @@ def get_github_profile(uid:str,gitname: str,q):
     except Exception as e:
         return f"Error while updating database {e}"
         
-    q.put(profile)
+    return profile
