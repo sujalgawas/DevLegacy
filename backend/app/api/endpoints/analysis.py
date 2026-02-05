@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from app.services.github import get_total_commit,get_consistency,get_open_source,get_tech_stack,get_code,get_documenation_stats,get_github_profile
+import asyncio
 
 router = APIRouter()
 
 class AnalysisRequest:
-    def __init__(self, get_total_commit, get_consistency, get_open_source, get_tech_stack,
-                 get_code, get_documentation_stats, get_github_profile, uid, gitname):
+    def __init__(self, get_total_commit = get_total_commit, get_consistency = get_consistency, get_open_source = get_open_source, get_tech_stack = get_tech_stack,
+                 get_code = get_code, get_documentation_stats = get_documenation_stats, get_github_profile = get_github_profile, uid=None, gitname=None):
         self.get_total_commit = get_total_commit
         self.get_consistency = get_consistency
         self.get_open_source = get_open_source
@@ -16,23 +17,33 @@ class AnalysisRequest:
         self.uid = uid
         self.gitname = gitname
 
-    def process(self):
-        total_commit = self.get_total_commit(self.uid, self.gitname)
-        consistency = self.get_consistency(self.uid, self.gitname)
-        open_source = self.get_open_source(self.uid, self.gitname)
-        tech_stack = self.get_tech_stack(self.uid, self.gitname)
-        code = self.get_code(self.uid, self.gitname)
-        documentation = self.get_documentation_stats(self.uid, self.gitname)
-        github_profile = self.get_github_profile(self.uid, self.gitname)
+    async def process(self):
+        
+        total_commit = asyncio.to_thread(self.get_total_commit, self.uid, self.gitname)
+        consistency = asyncio.to_thread(self.get_consistency, self.uid, self.gitname)
+        open_source = asyncio.to_thread(self.get_open_source, self.uid, self.gitname)
+        tech_stack = asyncio.to_thread(self.get_tech_stack, self.uid, self.gitname)
+        code = asyncio.to_thread(self.get_code, self.uid, self.gitname)
+        documentation = asyncio.to_thread(self.get_documentation_stats, self.uid, self.gitname)
+        github_profile = asyncio.to_thread(self.get_github_profile, self.uid, self.gitname)
+        
+        result = await asyncio.gather(
+            total_commit,
+            consistency,
+            open_source,
+            tech_stack,
+            code,
+            documentation,
+            github_profile)
 
         return {
-            "total_commit": total_commit,
-            "consistency": consistency,
-            "open_source": open_source,
-            "tech_stack": tech_stack,
-            "code": code,
-            "documentation": documentation,
-            "github_profile": github_profile,
+            "total_commit": result[0],
+            "consistency": result[1],
+            "open_source": result[2],
+            "tech_stack": result[3],
+            "code": result[4],
+            "documentation": result[5],
+            "github_profile": result[6],
         }
 
 
@@ -42,18 +53,11 @@ async def get_anaylsis(gitname: str):
     uid = "1"
 
     analysis_request = AnalysisRequest(
-        get_total_commit=get_total_commit,
-        get_consistency=get_consistency,
-        get_open_source=get_open_source,
-        get_tech_stack=get_tech_stack,
-        get_code=get_code,
-        get_documentation_stats=get_documenation_stats,
-        get_github_profile=get_github_profile,
         uid=uid,
         gitname=gitname
     )
 
-    result = analysis_request.process()
+    result = await analysis_request.process()
     return result
 
     """    
