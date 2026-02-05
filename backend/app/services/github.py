@@ -1,7 +1,6 @@
 from app.crud.User import update_code, update_commit_status, update_document_status, update_github_profile, update_open_source,update_consistency_status, update_tech_stack
 
-from app.services.helper_function import get_user_id
-from app.services.helper_function import github_api,get_user_id
+from app.services.helper_function import github_api,get_user_id,jupternotebook_cleaner
 
 from app.services.cloc import get_comment_to_code
 
@@ -293,60 +292,64 @@ def get_tech_stack(uid: str, gitname: str):
     result = {"all_languages": all_languages, "language_with_code_byte": language_with_code_byte}
     return result 
 
-def get_code(uid:str, gitname: str):
+def get_code(uid: str, gitname: str):
     valid_extensions = (
         ".py", ".js", ".java", ".c", ".cpp", ".cc", ".cxx", ".go", 
         ".ts", ".tsx", ".php", ".cs", ".rs", ".sql", "Dockerfile", 
-        ".dockerfile", ".kt", ".html", ".css", ".lua", ".ipynb"
+        ".dockerfile", ".kt", ".html", ".css", ".lua"
     )
 
-    query = """
-    query($owner: String!) {
-        user(login: $owner) {
-            pinnedItems(first: 5, types: REPOSITORY) {
-                edges {
-                    node {
-                        ... on Repository {
+    def build_nested_query(depth):
+        query_part = """
+          object {
+            ... on Blob { text }
+          }
+        """
+        
+        for _ in range(depth):
+            query_part = f"""
+            object {{
+              ... on Blob {{ text }}
+              ... on Tree {{
+                entries {{
+                  name
+                  type
+                  {query_part}
+                }}
+              }}
+            }}
+            """
+        return query_part
+
+    nested_structure = build_nested_query(10)
+
+    query = f"""
+    query($owner: String!) {{
+        user(login: $owner) {{
+            pinnedItems(first: 5, types: REPOSITORY) {{
+                edges {{
+                    node {{
+                        ... on Repository {{
                             name
-                            object(expression: "HEAD:") {
-                                ... on Tree {
-                                    entries {
+                            # We inject the generated structure here
+                            object(expression: "HEAD:") {{
+                                ... on Tree {{
+                                    entries {{
                                         name
                                         type
-                                        object {
-                                            ... on Blob { text }
-                                            ... on Tree {
-                                                entries {
-                                                    name
-                                                    type
-                                                    object {
-                                                        ... on Blob { text }
-                                                        ... on Tree {
-                                                            entries {
-                                                                name
-                                                                type
-                                                                object {
-                                                                    ... on Blob { text }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+                                        {nested_structure}
+                                    }}
+                                }}
+                            }}
+                        }}
+                    }}
+                }}
+            }}
+        }}
+    }}
     """
 
     variables = {"owner": gitname}
-    
     result = github_api(query, variables)
     
     repos = result.get("data", {}).get("user", {}).get("pinnedItems", {}).get("edges", [])
@@ -364,14 +367,19 @@ def get_code(uid:str, gitname: str):
                     text = entry.get("object", {}).get("text", "")
                     if text:
                         found_code.append(text)
-            
+                elif file_name.endswith(".ipynb"):
+                    text = entry.get("object",{}).get("text","")
+                    if text:
+                        processed_text = jupternotebook_cleaner(text)
+                        found_code.append(processed_text)
+                    
             elif file_type == "tree":
                 sub_entries = entry.get("object", {}).get("entries", [])
                 if sub_entries:
                     found_code.extend(extract_files_from_entries(sub_entries))
                     
         return found_code
-
+    
     for repo in repos:
         repo_node = repo.get("node", {})
         repo_name = repo_node.get("name")

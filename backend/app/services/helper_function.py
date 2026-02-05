@@ -1,8 +1,10 @@
+import logging
 import os 
 import requests
 from dotenv import load_dotenv
 from firebase_admin import auth
-
+import json
+from jupyter_notebook_parser import SourceCodeContainer
 
 load_dotenv()
 github_client_id = os.getenv("github_client_id")
@@ -34,6 +36,34 @@ def github_api(query : str,variable = None):
         return response.json()
     else:
         raise Exception(f"query failed {response.status_code}:{response.text}") 
+
+logger = logging.getLogger(__name__)
+
+def jupternotebook_cleaner(text):
+    if not text:
+        return ""
+
+    try:
+        notebook_json = json.loads(text)
+        
+        final_clean_code = []
+        
+        if 'cells' in notebook_json:
+            for cell in notebook_json['cells']:
+                if cell.get('cell_type') == 'code':
+                    raw_source = "".join(cell.get('source', []))
+                    container = SourceCodeContainer(raw_source)
+                    
+                    clean_code = container.source_without_magic
+                    if clean_code.strip():
+                        final_clean_code.append(clean_code)
+                        
+        return '\n'.join(final_clean_code)
+
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse Jupyter Notebook JSON: {str(e)}")
+        logger.error(f"Snippet of invalid text: {text[-100:]}") 
+        return ""
 
 #function to get user id from username
 def get_user_id(login):

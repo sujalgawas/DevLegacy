@@ -3,3 +3,4 @@ firebase-admin
 sqlalchemy
 alembic
 psycopg2
+jupyter-notebook-parser
