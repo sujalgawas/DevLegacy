@@ -16,7 +16,6 @@ class Test(BaseModel):
     temp : int
 
 class GithubProfile(BaseModel):
-    uid : int
     github_id : str
     github_profile : str
     name : str

@@ -1,14 +1,10 @@
-from app.crud.User import update_code, update_commit_status, update_document_status, update_github_profile, update_open_source,update_consistency_status, update_tech_stack
-
 from app.services.helper_function import github_api,get_user_id,jupternotebook_cleaner
 
 from app.services.cloc import get_comment_to_code
 
 from datetime import datetime, timezone
 
-from app.schemas.User import GithubProfile
-
-def get_total_commit(uid: str, gitname: str):    
+def get_total_commit(gitname: str):    
     try:
         author_id = get_user_id(gitname)
     except:
@@ -56,17 +52,13 @@ def get_total_commit(uid: str, gitname: str):
         if count > 0:
             commit_per_repo[repo_name] = count
             total_commits += count
-    try:
-        update_commit_status(uid=uid,total_commits=total_commits,commit_per_repo=commit_per_repo)
-    except Exception as e:
-        return f"Error while updating database {e}"
-
+            
     result =  {"total_commits": total_commits, "commit_per_repo": commit_per_repo}
     
     return result 
     
 
-def get_consistency(uid: str, gitname: str):
+def get_consistency(gitname: str):
     query = """
     query($owner: String!) {
         user(login: $owner) {
@@ -135,13 +127,6 @@ def get_consistency(uid: str, gitname: str):
                 if day['date'] == today_str:
                     continue 
                 break
-    
-    try:
-        update_consistency_status(uid = uid, total_contributions=total_contributions,
-                                  longest_streak=longest_streak,current_streak=current_streak,
-                                  active_days_count=active_days_count)
-    except Exception as e:
-        return f"Error updating databse {e}"
 
     result = {
             "total_contributions": total_contributions,
@@ -151,7 +136,7 @@ def get_consistency(uid: str, gitname: str):
             }   
     return result
 
-def get_open_source(uid: str, gitname: str):
+def get_open_source(gitname: str):
     query = """
     query($owner: String!){
         user(login: $owner){
@@ -224,13 +209,6 @@ def get_open_source(uid: str, gitname: str):
             name = review['pullRequest']['repository']['name']
             code_reviews[name] = code_reviews.get(name, 0) + 1
     
-    try:
-        update_open_source(uid=uid,pull_requests=pull_requests,
-                           issues=issues,repositories_contributed_to=repositories_contributed_to,
-                           code_reviews=code_reviews)
-    except Exception as e:
-        return f"Error while updating database {e}"
-    
     result =  {
         "pull_requests": pull_requests,
         "issues": issues,
@@ -239,7 +217,7 @@ def get_open_source(uid: str, gitname: str):
     }
     return result  
 
-def get_tech_stack(uid: str, gitname: str):    
+def get_tech_stack(gitname: str):    
     query = """
         query($owner: String!){
             user(login: $owner){
@@ -283,16 +261,10 @@ def get_tech_stack(uid: str, gitname: str):
             
             language_with_code_byte[name] = language_with_code_byte.get(name, 0) + size
         
-    try:
-        update_tech_stack(uid = uid,all_languages=all_languages,
-                          language_with_code_byte=language_with_code_byte)
-    except Exception as e:
-        return f"Error with updating databse {e}"
-        
     result = {"all_languages": all_languages, "language_with_code_byte": language_with_code_byte}
     return result 
 
-def get_code(uid: str, gitname: str):
+def get_code(gitname: str):
     valid_extensions = (
         ".py", ".js", ".java", ".c", ".cpp", ".cc", ".cxx", ".go", 
         ".ts", ".tsx", ".php", ".cs", ".rs", ".sql", "Dockerfile", 
@@ -321,7 +293,7 @@ def get_code(uid: str, gitname: str):
             """
         return query_part
 
-    nested_structure = build_nested_query(10)
+    nested_structure = build_nested_query(5)
 
     query = f"""
     query($owner: String!) {{
@@ -391,15 +363,10 @@ def get_code(uid: str, gitname: str):
         if repo_files:
             code_data[repo_name] = repo_files
     
-    try:
-        update_code(uid=uid,code_data=code_data)
-    except Exception as e:
-        return f"Error while updating database {e}"
-
     result = {"code_data": code_data}
     return result
     
-def get_documenation_stats(uid:str,gitname : str):    
+def get_documenation_stats(gitname : str):    
     query = """
         query($owner: String!){
             user(login: $owner){
@@ -472,20 +439,13 @@ def get_documenation_stats(uid:str,gitname : str):
     comment_percentage = 100/(total_code + commented_code) * commented_code
     comment_pre_repos = {"total_code":total_code,"commented_code":commented_code}
     
-    try:
-        update_document_status(uid=uid,avg_lines_readme=avg_lines_readme,
-                               comment_percentage=comment_percentage,
-                               comment_pre_repos=comment_pre_repos,final_dir=final_dir)
-    except Exception as e:
-        return f"Error updating database {e}"
-    
     result =  {"avg_lines_readme": avg_lines_readme,
             "comment_percentage": comment_percentage,
             "comment_pre_repos": comment_pre_repos,
             "final_dir": final_dir}
     return result
     
-def get_github_profile(uid:str,gitname: str):
+def get_github_profile(gitname: str):
     
     query = """
         query($owner: String!){
@@ -509,18 +469,12 @@ def get_github_profile(uid:str,gitname: str):
      """
     
     repository = github_api(query,{"owner":gitname})
-        
-    profile = GithubProfile(uid = uid,
-                            github_id = repository['data']['user']['id'],
-                            github_profile = repository['data']['user']['url'],
-                            name = repository['data']['user']['name'],
-                            public_repo = repository['data']['user']['repositories']['totalCount'],
-                            followers = repository['data']['user']['followers']['totalCount'],
-                            following = repository['data']['user']['following']['totalCount'])
-
-    try:
-        update_github_profile(uid,profile)
-    except Exception as e:
-        return f"Error while updating database {e}"
-        
-    return profile
+                
+    return {
+        "github_id": repository['data']['user']['id'],
+        "github_profile": repository['data']['user']['url'],
+        "name": repository['data']['user']['name'],
+        "public_repo": repository['data']['user']['repositories']['totalCount'],
+        "followers": repository['data']['user']['followers']['totalCount'],
+        "following": repository['data']['user']['following']['totalCount']
+    }
