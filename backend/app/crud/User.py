@@ -22,17 +22,17 @@ def get_session():
 session = get_session()
 
 
-def update_commit_status(uid:str, total_commits:int, commit_per_repo:dict):
+def update_commit_status(uid:str, total_commits:int, commits_per_repo:dict):
     user_commit_metadata = session.query(commit_status).filter_by(uid=uid).first()
 
     if user_commit_metadata:
         user_commit_metadata.total_commits = total_commits
-        user_commit_metadata.commits_per_repo = commit_per_repo
+        user_commit_metadata.commits_per_repo = commits_per_repo
     else:
         user_commit_metadata = commit_status(
             uid=uid,
             total_commits=total_commits,
-            commits_per_repo=commit_per_repo
+            commits_per_repo=commits_per_repo
         )
         session.add(user_commit_metadata)
 

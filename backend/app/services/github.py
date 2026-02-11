@@ -53,7 +53,7 @@ def get_total_commit(gitname: str):
             commit_per_repo[repo_name] = count
             total_commits += count
             
-    result =  {"total_commits": total_commits, "commit_per_repo": commit_per_repo}
+    result =  {"total_commits": total_commits, "commits_per_repo": commit_per_repo}
     
     return result 
     

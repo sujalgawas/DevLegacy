@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.services.github import get_total_commit,get_consistency,get_open_source,get_tech_stack,get_code,get_documenation_stats,get_github_profile
 from app.crud.User import update_code, update_commit_status, update_document_status, update_github_profile, update_open_source,update_consistency_status, update_tech_stack
 import asyncio
+import itertools
 
 router = APIRouter()
 
@@ -53,7 +54,7 @@ class AnalysisRequest:
         try:
             update_commit_status(uid = self.uid,
                                  total_commits = result["total_commit"]["total_commits"],
-                                 commit_per_repo = result["total_commit"]["commit_per_repo"])
+                                 commits_per_repo = result["total_commit"]["commits_per_repo"])
             
         except Exception as e:
               return f"Error updating commit_status with {e}"
@@ -134,6 +135,45 @@ async def get_anaylsis(gitname: str):
     
     if db_storing:
         return db_storing
+    
+    top_3_repo = result["total_commit"]["commits_per_repo"]
+    top_3_repo = dict(sorted(top_3_repo.items(), key= lambda item: item[1],reverse = True))
+    top_3_repo = dict(itertools.islice(top_3_repo.items(),3))
+    
+    top_languages = result["tech_stack"]["language_with_code_byte"]
+    top_languages = dict(sorted(top_languages.items(), key=lambda item : item[1],reverse = True))
+    top_languages = dict(itertools.islice(top_languages.items(),3))
+    print(top_languages)
+    
+    return {
+        #profile
+        "name" : result["github_profile"]["name"],
+        "public_repos" : result["github_profile"]["public_repo"],
+        "profile_picture": result["github_profile"]["profile_pic"],
+        "followers" : result["github_profile"]["followers"],
+        "following" : result["github_profile"]["following"],
+        "total_commits": result["total_commit"]["total_commits"],
+        "top_3_repo" : list(top_3_repo),
+        
+        #consistency
+        "longest_streak" : result["consistency"]["longest_streak"],
+        "current_streak" : result["consistency"]["current_streak"],
+        "active_days" : result["consistency"]["active_days_count"],
+        #github consistency graph
+        
+        #open source
+        "pull_requests" : result["open_source"]["pull_requests"],
+        "issues" : result["open_source"]["issues"],
+        "repositories_contributed_to" : result["open_source"]["repositories_contributed_to"],
+        "code_reviews" : result["open_source"]["code_reviews"],
+        
+        #tech stack
+        "all_languages" : result["tech_stack"]["all_languages"],
+        "most_used_language" : list(top_languages),
+        
+        #scorable
+        
+    }
     
     return result
 
