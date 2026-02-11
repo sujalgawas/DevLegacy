@@ -50,10 +50,12 @@ def update_github_profile(uid,profile):
         profile_db.public_repo = profile.public_repo
         profile_db.followers = profile.followers
         profile_db.following = profile.following
+        profile_db.profile_pic = profile.profile_pic
     else:
         profile_db = github_profile(uid = uid,
                                 github_id = profile.github_id,
                                 github_profile = profile.github_profile,
+                                profile_pic = profile.profile_pic,
                                 name = profile.name,
                                 public_repo = profile.public_repo,
                                 followers = profile.followers,

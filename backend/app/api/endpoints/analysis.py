@@ -64,6 +64,7 @@ class AnalysisRequest:
                 github_id = result["github_profile"]["github_id"],
                 github_profile = result["github_profile"]["github_profile"],
                 name = result["github_profile"]["name"],
+                profile_pic = result["github_profile"]["profile_pic"],
                 public_repo = result["github_profile"]["public_repo"],
                 followers = result["github_profile"]["followers"],
                 following = result["github_profile"]["following"]

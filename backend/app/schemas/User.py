@@ -18,6 +18,7 @@ class Test(BaseModel):
 class GithubProfile(BaseModel):
     github_id : str
     github_profile : str
+    profile_pic : str
     name : str
     public_repo : int
     followers : int

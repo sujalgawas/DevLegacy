@@ -6,6 +6,7 @@ class github_profile(Base):
     uid = Column(String,primary_key = True)
     github_id = Column(String)
     github_profile = Column(String)
+    profile_pic = Column(String)
     name = Column(String)
     public_repo = Column(Integer)
     followers = Column(Integer)

@@ -453,6 +453,7 @@ def get_github_profile(gitname: str):
                 id
                 name 
                 url
+                avatarUrl
                 
                 repositories(privacy: PUBLIC){
                     totalCount
@@ -473,6 +474,7 @@ def get_github_profile(gitname: str):
     return {
         "github_id": repository['data']['user']['id'],
         "github_profile": repository['data']['user']['url'],
+        "profile_pic": repository['data']['user']['avatarUrl'],
         "name": repository['data']['user']['name'],
         "public_repo": repository['data']['user']['repositories']['totalCount'],
         "followers": repository['data']['user']['followers']['totalCount'],
