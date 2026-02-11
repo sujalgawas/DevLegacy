@@ -143,7 +143,9 @@ async def get_anaylsis(gitname: str):
     top_languages = result["tech_stack"]["language_with_code_byte"]
     top_languages = dict(sorted(top_languages.items(), key=lambda item : item[1],reverse = True))
     top_languages = dict(itertools.islice(top_languages.items(),3))
-    print(top_languages)
+    
+    #scoreable
+    
     
     return {
         #profile
@@ -172,10 +174,21 @@ async def get_anaylsis(gitname: str):
         "most_used_language" : list(top_languages),
         
         #scorable
+        #code quality = function for getting code quality
+        "code_quality" : "Intern level",
         
+        "average_lines_readme" : result["documentation"]["avg_lines_readme"],
+        "comment_percentage" : result["documentation"]["comment_precentage"],
+        
+        #file structure function call score for file strcuture
+        "file_structure" : "8",
+        
+        #recommended role agentic AI function call
+        "recommended_role" : "AI/ML Engineer",
+        
+        #final score
+        "final_score" : "5"
     }
-    
-    return result
 
     """    
     #functions
