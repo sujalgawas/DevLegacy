@@ -5,6 +5,24 @@ import tempfile
 import os
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.feature_extraction.text import TfidfVectorizer
+import re
+
+def clean_paths(paths, max_depth=3):
+    cleaned = set()
+    for path in paths:
+        path = path.replace("\\", "/").lower()
+        path = os.path.splitext(path)[0]
+        #path = re.sub(r"/migrations/versions/.*", "/migrations/versions", path)
+        path = path.strip("/")
+        parts = path.split("/")
+        """
+        if len(parts) > max_depth:
+            parts = parts[:max_depth]
+        """
+        cleaned.add("/".join(parts))
+        
+    return sorted(cleaned)
 
 
 def directory(url):
@@ -32,7 +50,7 @@ def directory(url):
 url = "https://api.github.com/search/repositories"
 header = {"Accept":"application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"}
 
-framework = ["react","fastapi"] 
+framework = ["react","fastapi","postgres"]
 final_string = ""
 for x in framework:
     temp_str = "topic:" + x + " "
@@ -54,21 +72,35 @@ else:
     print(f"{response.status_code}")
 
 top_repo = data["items"][0]
-template_url = top_repo["html_url"]
+#template_url = top_repo["html_url"]
+template_url = "https://github.com/immich-app/immich.git"
 repo_url = "https://github.com/sujalgawas/DevLegacy.git"
 
 user_dir = directory(repo_url)
 template_dir = directory(template_url)
 
-transformer = SentenceTransformer('all-MiniLM-L6-v2')
+#transformer = SentenceTransformer('all-MiniLM-L6-v2')
+transformer = TfidfVectorizer()
 
 def dir_score(user_url, template_dir,transformer):
-    user_endcode = transformer.encode(user_url)
-    template_encode = transformer.encode(template_dir)
+    sorted_user = sorted(clean_paths(user_url))
+    sorted_template = sorted(clean_paths(template_dir))
+    print(sorted_user)
+    print(sorted_template)
     
-    score = cosine_similarity(user_endcode,template_encode)
+    user_final = "\n".join(sorted_user) 
+    template_final = "\n".join(sorted_template)
     
-    print(f"{score[0]:.4f}")
+    #vector = transformer.fit_transform([user_final,template_final])
+    user_encode = transformer.fit_transform([user_final])
+    template_encode = transformer.transform([template_final])
+    
+    #user_vector = vector[0]
+    #template_vector = vector[1]
+    
+    score = cosine_similarity(user_encode, template_encode)
+    
+    print(f"{score[0][0]:.4f}")
 
 
 dir_score(user_url=user_dir,template_dir=template_dir,transformer=transformer)
