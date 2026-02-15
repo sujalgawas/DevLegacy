@@ -365,6 +365,101 @@ def get_code(gitname: str):
     
     result = {"code_data": code_data}
     return result
+
+from urllib.parse import urlparse
+
+def get_code_framework(repo_url: str):
+    valid_extensions = (
+        ".py", ".js", ".java", ".c", ".cpp", ".cc", ".cxx", ".go", 
+        ".ts", ".tsx", ".php", ".cs", ".rs", ".sql", "Dockerfile", 
+        ".dockerfile", ".kt", ".html", ".css", ".lua"
+    )
+
+    def parse_repo_url(url):
+        parsed = urlparse(url)
+        path_parts = parsed.path.strip("/").split("/")
+        if len(path_parts) < 2:
+            raise ValueError("Invalid GitHub URL format. Expected: https://github.com/owner/repo")
+        return path_parts[0], path_parts[1]
+
+    owner, repo_name = parse_repo_url(repo_url)
+
+    def build_nested_query(depth):
+        query_part = """
+          object {
+            ... on Blob { text }
+          }
+        """
+        
+        for _ in range(depth):
+            query_part = f"""
+            object {{
+              ... on Blob {{ text }}
+              ... on Tree {{
+                entries {{
+                  name
+                  type
+                  {query_part}
+                }}
+              }}
+            }}
+            """
+        return query_part
+
+    nested_structure = build_nested_query(5)
+
+    query = f"""
+    query($owner: String!, $name: String!) {{
+        repository(owner: $owner, name: $name) {{
+            object(expression: "HEAD:") {{
+                ... on Tree {{
+                    entries {{
+                        name
+                        type
+                        {nested_structure}
+                    }}
+                }}
+            }}
+        }}
+    }}
+    """
+
+    variables = {"owner": owner, "name": repo_name}
+    result = github_api(query, variables)
+    
+    repo_data = result.get("data", {}).get("repository", {})
+    
+    if not repo_data or not repo_data.get("object"):
+        return []
+
+    root_entries = repo_data.get("object", {}).get("entries", [])
+    
+    def extract_files_from_entries(entries_list):
+        found_code = []
+        for entry in entries_list:
+            file_name = entry.get("name", "")
+            file_type = entry.get("type", "")
+            
+            if file_type == "blob":
+                if file_name.endswith(valid_extensions):
+                    text = entry.get("object", {}).get("text", "")
+                    if text:
+                        found_code.append(text)
+                
+                elif file_name.endswith(".ipynb"):
+                    text = entry.get("object", {}).get("text", "")
+                    if text:
+                        processed_text = jupternotebook_cleaner(text)
+                        found_code.append(processed_text)
+                    
+            elif file_type == "tree":
+                sub_entries = entry.get("object", {}).get("entries", [])
+                if sub_entries:
+                    found_code.extend(extract_files_from_entries(sub_entries))
+                    
+        return found_code
+
+    return extract_files_from_entries(root_entries)
     
 def get_documenation_stats(gitname : str):    
     query = """
