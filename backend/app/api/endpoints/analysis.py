@@ -131,10 +131,10 @@ async def get_anaylsis(gitname: str):
 
     result = await analysis_request.process()
     
-    db_storing = await analysis_request.db_storing(result=result)
+    db_storing_error = await analysis_request.db_storing(result=result)
     
-    if db_storing:
-        return db_storing
+    if db_storing_error and isinstance(db_storing_error, str) and db_storing_error.startswith("Error"):
+        raise HTTPException(status_code=500, detail=db_storing_error)
     
     top_3_repo = result["total_commit"]["commits_per_repo"]
     top_3_repo = dict(sorted(top_3_repo.items(), key= lambda item: item[1],reverse = True))
@@ -178,7 +178,7 @@ async def get_anaylsis(gitname: str):
         "code_quality" : "Intern level",
         
         "average_lines_readme" : result["documentation"]["avg_lines_readme"],
-        "comment_percentage" : result["documentation"]["comment_precentage"],
+        "comment_percentage" : float(f"{float(result['documentation']['comment_percentage']):.2f}"),
         
         #file structure function call score for file strcuture
         "file_structure" : "8",
