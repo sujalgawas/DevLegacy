@@ -1,6 +1,7 @@
 from app.schemas.User import GithubProfile
 from fastapi import APIRouter, Depends, HTTPException
 from app.services.github import get_total_commit,get_consistency,get_open_source,get_tech_stack,get_code,get_documenation_stats,get_github_profile
+from app.services.role_recommendation import get_role_recommendation
 from app.crud.User import update_code, update_commit_status, update_document_status, update_github_profile, update_open_source,update_consistency_status, update_tech_stack
 import asyncio
 import itertools
@@ -9,7 +10,7 @@ router = APIRouter()
 
 class AnalysisRequest:
     def __init__(self, get_total_commit = get_total_commit, get_consistency = get_consistency, get_open_source = get_open_source, get_tech_stack = get_tech_stack,
-                 get_code = get_code, get_documentation_stats = get_documenation_stats, get_github_profile = get_github_profile, uid=None, gitname=None):
+                 get_code = get_code, get_documentation_stats = get_documenation_stats, get_github_profile = get_github_profile, get_role_recommendation = get_role_recommendation, uid=None, gitname=None):
         self.get_total_commit = get_total_commit
         self.get_consistency = get_consistency
         self.get_open_source = get_open_source
@@ -17,6 +18,7 @@ class AnalysisRequest:
         self.get_code = get_code
         self.get_documentation_stats = get_documentation_stats
         self.get_github_profile = get_github_profile
+        self.get_role_recommendation = get_role_recommendation
         self.uid = uid
         self.gitname = gitname
 
@@ -29,6 +31,7 @@ class AnalysisRequest:
         code = asyncio.to_thread(self.get_code, self.gitname)
         documentation = asyncio.to_thread(self.get_documentation_stats, self.gitname)
         github_profile = asyncio.to_thread(self.get_github_profile, self.gitname)
+        role_recommendation = asyncio.to_thread(self.get_role_recommendation, self.gitname)
         
         self.result = await asyncio.gather(
             total_commit,
@@ -37,7 +40,8 @@ class AnalysisRequest:
             tech_stack,
             code,
             documentation,
-            github_profile)
+            github_profile,
+            role_recommendation)
 
         return {
             "total_commit": self.result[0],
@@ -47,6 +51,7 @@ class AnalysisRequest:
             "code": self.result[4],
             "documentation": self.result[5],
             "github_profile": self.result[6],
+            "role_recommendation": self.result[7],
         }
     
     async def db_storing(self,result):
@@ -183,8 +188,9 @@ async def get_anaylsis(gitname: str):
         #file structure function call score for file strcuture
         "file_structure" : "8",
         
-        #recommended role agentic AI function call
-        "recommended_role" : "AI/ML Engineer",
+        #recommended role
+        "detected_frameworks" : result["role_recommendation"]["detected_frameworks"],
+        "recommended_role" : result["role_recommendation"]["recommended_roles"],
         
         #final score
         "final_score" : "5"

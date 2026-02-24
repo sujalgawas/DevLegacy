@@ -124,7 +124,7 @@ const Analysis = () => {
                 setLoading(false);
             }
         };
-        
+
         loadData();
     }, [gitname]);
 
@@ -334,7 +334,14 @@ const Analysis = () => {
 
                     {/* Right Column - Score & Stack */}
                     <div className="space-y-8">
-                        <ScoreRing score={data.final_score} role={data.recommended_role} />
+                        <ScoreRing
+                            score={data.final_score}
+                            role={
+                                Array.isArray(data.recommended_role) && data.recommended_role.length > 0
+                                    ? data.recommended_role[0].role
+                                    : (typeof data.recommended_role === 'string' ? data.recommended_role : 'N/A')
+                            }
+                        />
 
                         {/* Tech Stack */}
                         <div className="bg-[#121215] border border-[#27272a] rounded-3xl p-8">

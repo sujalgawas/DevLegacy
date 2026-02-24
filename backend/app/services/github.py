@@ -4,6 +4,11 @@ from app.services.cloc import get_comment_to_code
 
 from datetime import datetime, timezone
 
+from app.services.helper_function import _github_headers,INDICATOR_FILES
+
+import requests
+import os
+
 def get_total_commit(gitname: str):    
     try:
         author_id = get_user_id(gitname)
@@ -575,3 +580,74 @@ def get_github_profile(gitname: str):
         "followers": repository['data']['user']['followers']['totalCount'],
         "following": repository['data']['user']['following']['totalCount']
     }
+    
+    
+
+
+def _get_user_repos(username, max_repos=50):
+    headers = _github_headers()
+    repos = []
+    page = 1
+    per_page = min(max_repos, 50)
+
+    while len(repos) < max_repos:
+        url = f"https://api.github.com/users/{username}/repos"
+        params = {
+            "sort": "pushed",
+            "direction": "desc",
+            "per_page": per_page,
+            "page": page,
+        }
+
+        response = requests.get(url, headers=headers, params=params)
+        if response.status_code != 200:
+            break
+
+        page_repos = response.json()
+        if not page_repos:
+            break
+
+        for repo in page_repos:
+            if len(repos) >= max_repos:
+                break
+            repos.append({
+                "name": repo["name"],
+                "owner": repo["owner"]["login"],
+                "fork": repo.get("fork", False),
+            })
+
+        page += 1
+
+    return repos
+
+def _get_repo_code_data(owner, repo_name):
+    headers = _github_headers()
+    code_data = ""
+
+    tree_url = f"https://api.github.com/repos/{owner}/{repo_name}/git/trees/HEAD?recursive=1"
+    tree_response = requests.get(tree_url, headers=headers)
+
+    if tree_response.status_code != 200:
+        return ""
+
+    tree_data = tree_response.json()
+    tree_items = tree_data.get("tree", [])
+
+    file_paths = [item["path"] for item in tree_items if item["type"] == "blob"]
+    code_data = " ".join(file_paths)
+
+    for item in tree_items:
+        if item["type"] == "blob" and os.path.basename(item["path"]) in INDICATOR_FILES:
+            file_url = f"https://api.github.com/repos/{owner}/{repo_name}/contents/{item['path']}"
+            file_response = requests.get(file_url, headers=headers, params={"ref": "HEAD"})
+
+            if file_response.status_code == 200:
+                file_data = file_response.json()
+                download_url = file_data.get("download_url")
+                if download_url:
+                    raw_response = requests.get(download_url)
+                    if raw_response.status_code == 200:
+                        code_data += " " + raw_response.text
+
+    return code_data
+
