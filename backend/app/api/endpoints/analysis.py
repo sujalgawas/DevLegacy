@@ -2,6 +2,7 @@ from app.schemas.User import GithubProfile
 from fastapi import APIRouter, Depends, HTTPException
 from app.services.github import get_total_commit,get_consistency,get_open_source,get_tech_stack,get_code,get_documenation_stats,get_github_profile
 from app.services.role_recommendation import get_role_recommendation
+from app.services.file_structure import get_file_structure_score
 from app.crud.User import update_code, update_commit_status, update_document_status, update_github_profile, update_open_source,update_consistency_status, update_tech_stack
 import asyncio
 import itertools
@@ -150,7 +151,7 @@ async def get_anaylsis(gitname: str):
     top_languages = dict(itertools.islice(top_languages.items(),3))
     
     #scoreable
-    
+    print(result["documentation"]["final_dir"])
     
     return {
         #profile
@@ -186,7 +187,7 @@ async def get_anaylsis(gitname: str):
         "comment_percentage" : float(f"{float(result['documentation']['comment_percentage']):.2f}"),
         
         #file structure function call score for file strcuture
-        "file_structure" : "8",
+        "file_structure" : get_file_structure_score(result["documentation"]["final_dir"]),
         
         #recommended role
         "detected_frameworks" : result["role_recommendation"]["detected_frameworks"],
