@@ -151,7 +151,7 @@ async def get_anaylsis(gitname: str):
     top_languages = dict(itertools.islice(top_languages.items(),3))
     
     #scoreable
-    print(result["documentation"]["final_dir"])
+    
     
     return {
         #profile

@@ -1,3 +1,53 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer utilities {
+
+    /* Dark glass panel — Omarchy style */
+    .glass-panel {
+        background: rgba(15, 14, 26, 0.75);
+        backdrop-filter: blur(20px);
+        border: 1px solid rgba(139, 92, 246, 0.15);
+        border-radius: 16px;
+    }
+
+    .glass-panel-hover {
+        transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+    }
+
+    .glass-panel-hover:hover {
+        border-color: rgba(34, 211, 238, 0.3);
+        box-shadow: 0 0 30px rgba(34, 211, 238, 0.06);
+        transform: translateY(-2px);
+    }
+
+    /* Text gradient */
+    .text-gradient-sunset {
+        background: linear-gradient(135deg, #FF6B9D, #8B5CF6, #22D3EE);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .text-gradient-pink {
+        background: linear-gradient(135deg, #FF6B9D, #D946A8);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .animation-delay-2000 {
+        animation-delay: 2s;
+    }
+
+    .animation-delay-4000 {
+        animation-delay: 4s;
+    }
+
+    .animation-delay-6000 {
+        animation-delay: 6s;
+    }
+}
