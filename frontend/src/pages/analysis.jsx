@@ -282,12 +282,26 @@ const Analysis = () => {
                                     { val: data.issues, label: 'Issues' },
                                     { val: data.repositories_contributed_to, label: 'Contributed' },
                                     { val: data.code_reviews, label: 'Reviews' },
-                                ].map((item, idx) => (
-                                    <div key={idx}>
-                                        <span className="text-xl font-bold text-white/80 font-mono">{String(item.val || 0)}</span>
-                                        <p className="text-[10px] text-white/25 font-mono uppercase mt-0.5">{item.label}</p>
-                                    </div>
-                                ))}
+                                ].map((item, idx) => {
+                                    let display = '-';
+                                    const v = item.val;
+                                    if (v != null) {
+                                        if (typeof v === 'number' || typeof v === 'string') {
+                                            display = String(v);
+                                        } else if (Array.isArray(v)) {
+                                            display = String(v.length);
+                                        } else if (typeof v === 'object') {
+                                            const total = Object.values(v).reduce((sum, n) => sum + (Number(n) || 0), 0);
+                                            display = total > 0 ? String(total) : '-';
+                                        }
+                                    }
+                                    return (
+                                        <div key={idx}>
+                                            <span className="text-xl font-bold text-white/80 font-mono">{display}</span>
+                                            <p className="text-[10px] text-white/25 font-mono uppercase mt-0.5">{item.label}</p>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </StatCard>
 
