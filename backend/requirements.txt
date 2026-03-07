@@ -4,3 +4,5 @@ sqlalchemy
 alembic
 psycopg2
 jupyter-notebook-parser
+huggingface_hub
+transformers
