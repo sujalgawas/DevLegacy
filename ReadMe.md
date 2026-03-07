@@ -1,23 +1,37 @@
-## Frameworks used 
-Backend:- FastAPI
-Frontend:- REACT.js
-Caching:- redis
-Database:- PostgreSQL
-Auth :- Firebase Auth
-Data Analysis :- Pandas,Pytorch,numpy
-AI/ML:- Pytorch
+# Spotify Analysis Platform
 
-## Directory structure
+## Frameworks Used
 
-# Root structure 
+| Layer | Technology |
+|---|---|
+| Backend | FastAPI |
+| Frontend | React.js |
+| Caching | Redis |
+| Database | PostgreSQL |
+| Auth | Firebase Auth |
+| Data Analysis | Pandas, PyTorch, NumPy |
+| AI/ML | PyTorch |
+
+---
+
+## Directory Structure
+
+### Root Structure
+
+```
 spotify-analysis-platform/
 ├── backend/                # FastAPI application
 ├── frontend/               # React.js (Vite) application
 ├── ml_service/             # Dedicated folder for heavy model logic (VGGish/Llama)
 ├── docker-compose.yml      # Orchestrates Postgres, Redis, Backend, Frontend
 └── .env.example            # Environment variables template
+```
 
-# Backend structure
+---
+
+### Backend Structure
+
+```
 backend/
 ├── app/
 │   ├── api/                # Route handlers (v1, v2)
@@ -39,8 +53,13 @@ backend/
 ├── migrations/             # Alembic database migrations
 ├── tests/                  # Pytest suite
 └── requirements.txt
+```
 
-# Frontend structure
+---
+
+### Frontend Structure
+
+```
 frontend/
 ├── src/
 │   ├── assets/             # Images, fonts, icons
@@ -57,6 +76,10 @@ frontend/
 │   └── main.tsx
 ├── public/
 └── tailwind.config.js
+```
 
-## database 
+---
+
+## Database
+
 ![database design](spotify_database.png)
