@@ -42,6 +42,11 @@ backend/env/
 backend/.env/
 env/
 .env/
+
+#AI files
+backend/app/utils/
+backend/cache/
+
 # Python cache
 __pycache__/
 *.py[cod]
