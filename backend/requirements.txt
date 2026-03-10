@@ -6,3 +6,4 @@ psycopg2
 jupyter-notebook-parser
 huggingface_hub
 transformers
+llama-cpp-python
