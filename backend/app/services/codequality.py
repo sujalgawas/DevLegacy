@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import torch
 from llama_cpp import Llama
+import random
 
 load_dotenv()
 
@@ -225,26 +226,6 @@ else:
         print("Quantizing to Q4_K_M...")
         subprocess.run([str(quantize_exe), str(model_gguf), str(model_gguf_q4), QUANT_TYPE], check=True)
 
-text = """
-import random
-
-numbers = [random.randint(1, 100) for _ in range(10)]
-total = 0
-
-for n in numbers:
-    if n % 2 == 0:
-        total += n
-    else:
-        total += 1
-
-average = total / len(numbers)
-
-print("Numbers:", numbers)
-print("Total:", total)
-print("Average:", average)
-print("Done")
-"""
-
 from transformers import AutoTokenizer
 from torch import nn
 
@@ -311,15 +292,41 @@ def predict(llm, classifier, text):
 
         score = classifier(embedding)
 
-    print(f"\nPrediction Score: {score.item():.4f}")
-    
-    if score.item() > 0.5:
-        print("Prediction: Senior")
-    else:
-        print("Prediction: Intern")
+    return f'{score.item():.4f}'    
 
 llm = load_llama()
 
 classifier = load_classifier()
 
-predict(llm, classifier, text)
+def code_quality(text):
+    
+    code = []
+
+    for value in text.values():
+
+        if isinstance(value, dict):
+            value = list(value.values())
+
+        samples = random.sample(value, min(len(value), 10))
+
+        for item in samples:
+
+            # convert list -> string if needed
+            if isinstance(item, list):
+                item = " ".join(item)
+
+            cleaned = " ".join(item.split()[:500])
+            code.append(cleaned)
+
+    scores = [float(predict(llm, classifier, snippet)) for snippet in code]
+
+    score = sum(scores) / len(scores)
+    
+    if score < 0.3:
+        return score*100,"Intern"
+    elif score < 0.5:
+        return score*100, "Fresher"
+    elif score < 0.7:
+        return score*100, "Mid"
+    else:
+        return score*100, "senior"

@@ -308,8 +308,11 @@ const Analysis = () => {
                         <StatCard icon={Code2} title="Code Intelligence" iconColor="text-sunset-purple">
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between p-3 bg-white/[0.03] border border-white/[0.05] rounded-xl">
+                                    <span className="text-[10px] font-mono uppercase tracking-wider text-white/30">Score</span>
+                                    <span className="text-sm font-bold text-gradient-pink">{data.code_level || 'N/A'} / 100</span>
+
                                     <span className="text-[10px] font-mono uppercase tracking-wider text-white/30">Level</span>
-                                    <span className="text-sm font-bold text-gradient-pink">{data.code_quality || 'N/A'}</span>
+                                    <span className="text-sm font-bold text-gradient-pink">{data.code_score || 'N/A'}</span>
                                 </div>
                                 <div>
                                     <div className="flex justify-between items-end mb-2">

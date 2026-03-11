@@ -13,7 +13,9 @@ from app.models import open_source
 from app.models import consistency
 from app.models import document_stat
 from app.models import code
+from app.models import code_quality
 from app.db.base import Base
+
 
 
 # this is the Alembic Config object, which provides

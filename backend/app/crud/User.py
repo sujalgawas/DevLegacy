@@ -11,6 +11,7 @@ from app.models.open_source import open_source
 from app.models.consistency import consistency_status
 from app.models.document_stat import document_stats
 from app.models.code import Code
+from app.models.code_quality import Code_quality
 
 engine = create_engine("postgresql://postgres:1234@localhost:5432/dev")
 
@@ -21,6 +22,16 @@ def get_session():
 
 session = get_session()
 
+def update_code_quality(uid:str,code_score:int,code_level:str):
+    code = session.query(Code_quality).filter_by(uid=uid).first()
+    
+    if code:
+        code.code_score = code_score
+        code.code_level = code_level
+    else:
+        code = Code_quality(uid=uid,code_score=code_score,code_level=code_level)
+        session.add(code)
+    session.commit()
 
 def update_commit_status(uid:str, total_commits:int, commits_per_repo:dict):
     user_commit_metadata = session.query(commit_status).filter_by(uid=uid).first()

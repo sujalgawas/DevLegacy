@@ -1,4 +1,4 @@
-from app.services.github import get_open_source
+from app.services.codequality import code_quality
 
-
-print(get_open_source("sujalgawas"))
+text = {"project1":["sdfjkdsfkjsdjfskfjsdfjdk"],"project2":["sdfjkdsfkjsdjfskfjsdfjdk"],"project3":["sdfjkdsfkjsdjfskfjsdfjdk"],}
+print(code_quality(text))

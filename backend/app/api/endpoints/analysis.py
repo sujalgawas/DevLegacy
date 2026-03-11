@@ -3,7 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.services.github import get_total_commit,get_consistency,get_open_source,get_tech_stack,get_code,get_documenation_stats,get_github_profile
 from app.services.role_recommendation import get_role_recommendation
 from app.services.file_structure import get_file_structure_score
-from app.crud.User import update_code, update_commit_status, update_document_status, update_github_profile, update_open_source,update_consistency_status, update_tech_stack
+from app.crud.User import update_code, update_code_quality, update_commit_status, update_document_status, update_github_profile, update_open_source,update_consistency_status, update_tech_stack
+from app.services.codequality import code_quality
 import asyncio
 import itertools
 
@@ -11,7 +12,7 @@ router = APIRouter()
 
 class AnalysisRequest:
     def __init__(self, get_total_commit = get_total_commit, get_consistency = get_consistency, get_open_source = get_open_source, get_tech_stack = get_tech_stack,
-                 get_code = get_code, get_documentation_stats = get_documenation_stats, get_github_profile = get_github_profile, get_role_recommendation = get_role_recommendation, uid=None, gitname=None):
+                 get_code = get_code, get_documentation_stats = get_documenation_stats, get_github_profile = get_github_profile, get_role_recommendation = get_role_recommendation, code_quality = code_quality,uid=None, gitname=None):
         self.get_total_commit = get_total_commit
         self.get_consistency = get_consistency
         self.get_open_source = get_open_source
@@ -20,6 +21,7 @@ class AnalysisRequest:
         self.get_documentation_stats = get_documentation_stats
         self.get_github_profile = get_github_profile
         self.get_role_recommendation = get_role_recommendation
+        self.code_quality = code_quality
         self.uid = uid
         self.gitname = gitname
 
@@ -44,6 +46,8 @@ class AnalysisRequest:
             github_profile,
             role_recommendation)
 
+        self.code_level,self.code_score = self.code_quality(self.result[4])
+        
         return {
             "total_commit": self.result[0],
             "consistency": self.result[1],
@@ -53,6 +57,8 @@ class AnalysisRequest:
             "documentation": self.result[5],
             "github_profile": self.result[6],
             "role_recommendation": self.result[7],
+            "code_level":self.code_level,
+            "code_score":self.code_score
         }
     
     async def db_storing(self,result):
@@ -125,6 +131,13 @@ class AnalysisRequest:
                               language_with_code_byte = result["tech_stack"]["language_with_code_byte"])
         except Exception as e:
             return f"Error updating tech_stack with {e}"
+        
+        try:
+            update_code_quality(uid = self.uid,
+                                code_score = result["code_score"],
+                                code_level = result["code_level"])
+        except Exception as e:
+            return f"Error updating code_quality with {e}"
 
 @router.get('/username/analysis/{gitname}')
 async def get_anaylsis(gitname: str):
@@ -181,7 +194,8 @@ async def get_anaylsis(gitname: str):
         
         #scorable
         #code quality = function for getting code quality
-        "code_quality" : "Intern level",
+        "code_score" : result["code_score"],
+        "code_level" : result["code_level"],
         
         "average_lines_readme" : result["documentation"]["avg_lines_readme"],
         "comment_percentage" : float(f"{float(result['documentation']['comment_percentage']):.2f}"),
