@@ -10,6 +10,24 @@ import itertools
 
 router = APIRouter()
 
+def rate_comment_percentage(percentage):
+    # Catch any weird data first
+    if percentage < 0 or percentage > 100:
+        return "Invalid percentage"
+        
+    # Evaluate using the bell-curve scale
+    if percentage < 5:
+        return 0
+    elif percentage < 10:
+        return 7
+    elif percentage <= 20:
+        return 10
+    elif percentage <= 30:
+        return 5
+    else: 
+        # Anything strictly greater than 30% falls here
+        return 2
+
 class AnalysisRequest:
     def __init__(self, get_total_commit = get_total_commit, get_consistency = get_consistency, get_open_source = get_open_source, get_tech_stack = get_tech_stack,
                  get_code = get_code, get_documentation_stats = get_documenation_stats, get_github_profile = get_github_profile, get_role_recommendation = get_role_recommendation, code_quality = code_quality,uid=None, gitname=None):
@@ -164,6 +182,9 @@ async def get_anaylsis(gitname: str):
     top_languages = dict(itertools.islice(top_languages.items(),3))
     
     #scoreable
+    file_structure = get_file_structure_score(result["documentation"]["final_dir"])
+    
+    comment_score = rate_comment_percentage(float(f"{float(result['documentation']['comment_percentage']):.2f}"))
     
     
     return {
@@ -194,21 +215,21 @@ async def get_anaylsis(gitname: str):
         
         #scorable
         #code quality = function for getting code quality
-        "code_score" : result["code_score"],
-        "code_level" : result["code_level"],
+        "code_score" : result['code_score'],
+        "code_level" : int(result["code_level"]),
         
         "average_lines_readme" : result["documentation"]["avg_lines_readme"],
         "comment_percentage" : float(f"{float(result['documentation']['comment_percentage']):.2f}"),
         
         #file structure function call score for file strcuture
-        "file_structure" : get_file_structure_score(result["documentation"]["final_dir"]),
+        "file_structure" : file_structure,
         
         #recommended role
         "detected_frameworks" : result["role_recommendation"]["detected_frameworks"],
         "recommended_role" : result["role_recommendation"]["recommended_roles"],
         
         #final score
-        "final_score" : "5"
+        "final_score" : int((int(result["code_level"]/10) + file_structure + comment_score) / 3)
     }
 
     """    
