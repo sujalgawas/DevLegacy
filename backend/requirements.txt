@@ -7,3 +7,5 @@ jupyter-notebook-parser
 huggingface_hub
 transformers
 llama-cpp-python
+scikit-learn
+torch
