@@ -2,7 +2,7 @@ fastapi[standard]
 firebase-admin
 sqlalchemy
 alembic
-psycopg2
+psycopg2-binary
 jupyter-notebook-parser
 huggingface_hub
 transformers
