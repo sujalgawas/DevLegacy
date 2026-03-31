@@ -1,6 +1,11 @@
-server:
-  host: 0.0.0.0
-  port: 8082
-  features:
-    - reload
-    - logging
+services:
+  devlegacy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    #image: "dev/devlegacy:latest"
+    container_name: devlegacy
+    network_mode: host
+    #ports: 
+    #  - "8082:8082"
+    restart: unless-stopped
