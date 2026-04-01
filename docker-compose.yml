@@ -3,9 +3,21 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    #image: "dev/devlegacy:latest"
     container_name: devlegacy
-    network_mode: host
-    #ports: 
-    #  - "8082:8082"
+    ports: 
+      - "8082:8082"
+    networks:
+      - tunnel_network
     restart: unless-stopped
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflare-tunnel
+    command: tunnel --url http://devlegacy:8082
+    networks:
+      - tunnel_network
+    restart: unless-stopped
+
+networks:
+  tunnel_network:
+    driver: bridge
