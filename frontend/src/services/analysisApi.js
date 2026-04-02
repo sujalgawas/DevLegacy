@@ -1,14 +1,16 @@
-export const fetchAnalysis = async (gitname) => {
-    const API_BASE_URL = 'http://127.0.0.1:8001/api/v1';
-    try {
-        const response = await fetch(`${API_BASE_URL}/analysis/username/analysis/${gitname}`);
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.detail || `Failed to fetch analysis: ${response.statusText}`);
-        }
-        return await response.json();
-    } catch (error) {
-        console.error('Error fetching analysis:', error);
-        throw error;
-    }
+const API_BASE_URL = 'http://localhost:8082/api/v1';
+
+export const startAnalysis = async (gitname) => {
+    const response = await fetch(`${API_BASE_URL}/analysis/${gitname}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    });
+    if (!response.ok) throw new Error(`Failed to start: ${response.status}`);
+    return response.json();
+};
+
+export const checkAnalysisStatus = async (taskId) => {
+    const response = await fetch(`${API_BASE_URL}/analysis/status/${taskId}`);
+    if (!response.ok) throw new Error(`Failed to check status: ${response.status}`);
+    return response.json();
 };
