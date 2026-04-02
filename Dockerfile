@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR backend
+WORKDIR /backend
 
 COPY backend/requirements.txt .
 
