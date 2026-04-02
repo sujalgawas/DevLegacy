@@ -40,7 +40,7 @@ jobs:
         host: ${{ secrets.SERVER_IP }}
         username: ${{ secrets.SERVER_USER }}
         key: ${{ secrets.SSH_PRIVATE_KEY }}
-        port: 22
+        port: 2222
         script: |
           cd ~/DevLegacy || cd ~/devlegacy || true
           docker compose pull
