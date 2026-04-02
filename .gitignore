@@ -43,6 +43,8 @@ backend/.env/
 env/
 .env/
 
+/duckdns
+
 #AI files
 backend/app/utils/
 backend/cache/
