@@ -136,13 +136,18 @@ async def get_analysis_status(task_id: str):
         raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found.")
     return task
 
-# ---- GET /api/v1/analysis/test -----------
+# ---- GET /api/v1/analysis/testing -----------
 @router.get("/testing")
 async def test_endpoint():
     return {"message": "Analysis endpoint is working!"}
 
 
-# ---- GET /api/v1/analysis/test -----------
+# ---- GET /api/v1/analysis/test2 -----------
 @router.get("/test2")
+async def test_endpoint():
+    return {"message": "Analysis endpoint is working!"}
+
+# ---- GET /api/v1/analysis/test -----------
+@router.get("/test")
 async def test_endpoint():
     return {"message": "Analysis endpoint is working!"}
