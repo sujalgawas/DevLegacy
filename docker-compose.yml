@@ -6,9 +6,9 @@ services:
     image: ghcr.io/sujalgawas/devlegacy/devlegacy:latest
     container_name: devlegacy
     env_file:
-      - backend/env
+      - backend/.env
     volumes:
-      - ./backend/app/serviceAccountKey.json:/app/serviceAccountKey.json
+      - ./backend:/backend
     ports: 
       - "8082:8082"
     networks:
