@@ -1,4 +1,4 @@
-name: Build and Auto-Deploy
+name: Build and Push Image
 
 on:
   push:
@@ -28,20 +28,3 @@ jobs:
         context: .
         push: true
         tags: ghcr.io/sujalgawas/devlegacy/devlegacy:latest
-
-  deploy:
-    needs: build-and-push
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: SSH and Deploy
-      uses: appleboy/ssh-action@v1.2.5
-      with:
-        host: ${{ secrets.SERVER_IP }}
-        username: ${{ secrets.SERVER_USER }}
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        port: 2222
-        script: |
-          cd ~/DevLegacy || cd ~/devlegacy || true
-          docker compose pull
-          docker compose up -d --build --remove-orphans
