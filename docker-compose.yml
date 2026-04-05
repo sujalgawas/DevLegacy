@@ -15,10 +15,14 @@ services:
       - tunnel_network
     restart: unless-stopped
 
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    container_name: cloudflare-tunnel
-    command: tunnel --url http://devlegacy:8082
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: ngrok
+    command: http devlegacy:8082
+    env_file:
+      - backend/.env.ngrok
+    ports:
+      - "4040:4040"
     networks:
       - tunnel_network
     restart: unless-stopped
