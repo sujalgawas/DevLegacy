@@ -1,85 +1,36 @@
-# Spotify Analysis Platform
+# DevLegacy
 
-## Frameworks Used
+DevLegacy is an analysis tool that evaluates a developer's GitHub profile to generate a comprehensive legacy score. It assesses code quality, documentation habits, commit consistency, and file structures to provide a detailed developer profile and role recommendations.
 
-| Layer | Technology |
-|---|---|
-| Backend | FastAPI |
-| Frontend | React.js |
-| Caching | Redis |
-| Database | PostgreSQL |
-| Auth | Firebase Auth |
-| Data Analysis | Pandas, PyTorch, NumPy |
-| AI/ML | PyTorch |
+## Features
+- **Profile & Consistency Tracking:** Analyzes total commits, streaks, and active open-source contributions.
+- **Code & Structure Evaluation:** Scores code quality using LLaMA models and evaluates repository directory structures.
+- **Documentation Metrics:** Evaluates average README lengths and codebase comment percentages.
+- **Role Recommendation:** Suggests appropriate user roles based on the detected tech stack and frameworks.
+- **3D Interactive UI:** Provides an immersive experience using React Three Fiber.
 
----
+## Tech Stack
+- **Frontend:** React (Vite), Tailwind CSS, React Three Fiber (Three.js)
+- **Backend:** FastAPI (Python), SQLAlchemy, PostgreSQL
+- **AI/ML:** Hugging Face Hub, LLaMA CPP Python, PyTorch, Scikit-learn
+- **Infrastructure:** Docker, Docker Compose, Ngrok, Firebase Admin
 
-## Directory Structure
+## How to Run
 
-### Root Structure
+1. **Configure Environment:** Create `backend/.env` (using `backend/.env.example` as a template) and place your Firebase credentials at `backend/serviceAccountKey.json`.
+2. **Start Backend & Database:**
+   ```bash
+   docker compose up --build -d
+   ```
+3. **Start Frontend:**
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
 
-```
-spotify-analysis-platform/
-├── backend/                # FastAPI application
-├── frontend/               # React.js (Vite) application
-├── ml_service/             # Dedicated folder for heavy model logic (VGGish/Llama)
-├── docker-compose.yml      # Orchestrates Postgres, Redis, Backend, Frontend
-└── .env.example            # Environment variables template
-```
+## Notes
+- To enable full analysis features, ensure both `hugging_face_token` and GitHub credentials are set properly in your `backend/.env` file.
 
----
-
-### Backend Structure
-
-```
-backend/
-├── app/
-│   ├── api/                # Route handlers (v1, v2)
-│   │   ├── endpoints/      # Specific routes (auth, analysis, social, playlist)
-│   │   └── router.py       # Main router entry point
-│   ├── core/               # Global config (security, config.py, logging)
-│   ├── db/                 # Database connection and session management
-│   │   ├── base.py         # SQLAlchemy/SQLModel base
-│   │   └── session.py
-│   ├── models/             # Database Schemas (SQLAlchemy/SQLModel)
-│   ├── schemas/            # Pydantic models for request/response validation
-│   ├── services/           # CORE BUSINESS LOGIC (Github API calls, Analysis logic)
-│   │   ├── spotify_svc.py
-│   │   ├── analytics_svc.py
-│   │   └── ai_agent.py     # LSTM coding analysis
-│   ├── crud/               # Create, Read, Update, Delete helpers
-│   ├── utils/              # Helpers (caching logic with Redis, Firebase helpers)
-│   └── main.py             # App entry point
-├── migrations/             # Alembic database migrations
-├── tests/                  # Pytest suite
-└── requirements.txt
-```
-
----
-
-### Frontend Structure
-
-```
-frontend/
-├── src/
-│   ├── assets/             # Images, fonts, icons
-│   ├── components/         # Shared UI components (Buttons, Modals, Cards)
-│   ├── features/           # Modular features
-│   │   ├── analytics/      # Monthly/Yearly wrap components & hooks
-│   │   ├── community/      # Feed, sharing, social interactions
-│   │   └── recommendations/ # Recommendation engine UI
-│   ├── hooks/              # Custom React hooks (useAuth, useSpotify)
-│   ├── services/           # API client (Axios/TanStack Query instances)
-│   ├── store/              # State management (Zustand or Redux)
-│   ├── pages/              # Main route pages
-│   ├── App.tsx
-│   └── main.tsx
-├── public/
-└── tailwind.config.js
-```
-
----
-
-## Database
-
-![database design](spotify_database.png)
+## database
+![database design](github_database.png)
