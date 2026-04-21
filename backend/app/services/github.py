@@ -572,6 +572,7 @@ def get_github_profile(gitname: str):
     repository = github_api(query,{"owner":gitname})
                 
     return {
+        "username": gitname,
         "github_id": repository['data']['user']['id'],
         "github_profile": repository['data']['user']['url'],
         "profile_pic": repository['data']['user']['avatarUrl'],

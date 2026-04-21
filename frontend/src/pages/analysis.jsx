@@ -6,7 +6,7 @@ import {
     Trophy, ExternalLink, Sparkles, Activity
 } from 'lucide-react';
 
-import { startAnalysis, checkAnalysisStatus } from '../services/analysisApi';
+import { startAnalysis, checkAnalysisStatus, checkUserExistingData } from '../services/analysisApi';
 
 /* ── Stat Card ── */
 const StatCard = ({ icon: Icon, title, value, label, children, iconColor = "text-sunset-pink" }) => (
@@ -89,36 +89,40 @@ const Analysis = () => {
 
             try {
                 setLoading(true);
-                setStatusMessage("Requesting analysis from server...");
+                setStatusMessage("Checking for existing analysis...");
 
-                // 1. Start Task
+                let existingData = null;
+                try {
+                    existingData = await checkUserExistingData(gitname);
+                } catch (checkErr) {
+                    console.warn("Existing-data check failed, will start fresh:", checkErr);
+                }
+
+                if (existingData?.status === "completed" && existingData?.data) {
+                    console.log("Existing data found:", existingData.data);
+                    setData(existingData.data);
+                    setLoading(false);
+                    return;
+                }
+
+                setStatusMessage("Requesting new analysis from server...");
                 const startData = await startAnalysis(gitname);
-                
-                // CRITICAL FIX: Make sure your backend actually returns 'task_id' in the JSON
                 const taskId = startData?.task_id || startData?.taskId || startData?.id;
 
                 if (!taskId) {
-                    console.error("Backend response missing task_id:", startData);
                     throw new Error('Backend did not return a valid task_id.');
                 }
 
-                setStatusMessage("Analyzing repositories (this can take 5-15 minutes)...");
+                setStatusMessage("Analyzing repositories (this can take 5–15 minutes)...");
 
-                // 2. Poll Status
                 pollInterval = setInterval(async () => {
                     try {
                         const statusData = await checkAnalysisStatus(taskId);
 
                         if (statusData.status === "completed") {
                             clearInterval(pollInterval);
-                            
                             if (isMounted) {
-                                // IMPORTANT: Adjust this if your backend puts the payload somewhere else!
-                                // The FastAPI code we wrote earlier puts it inside {"data": { ... }}
-                                const result = statusData.data || statusData.result || statusData; 
-                                
-                                console.log("Final payload set to state:", result);
-
+                                const result = statusData.data || statusData.result || statusData;
                                 if (!result || Object.keys(result).length === 0) {
                                     setError('Analysis completed but returned empty data.');
                                 } else {
@@ -136,7 +140,7 @@ const Analysis = () => {
                     } catch (pollErr) {
                         console.warn("Polling error (might be temporary):", pollErr);
                     }
-                }, 10000); 
+                }, 10000);
 
             } catch (err) {
                 console.error("Critical Error:", err);
@@ -199,8 +203,8 @@ const Analysis = () => {
     const topRepos = Array.isArray(data?.top_3_repo) ? data.top_3_repo : [];
     const mainLangs = Array.isArray(data?.most_used_language) ? data.most_used_language : [];
     const allLangs = Array.isArray(data?.all_languages) ? data.all_languages : [];
-    const recommendedRole = Array.isArray(data?.recommended_role) && data.recommended_role.length > 0 
-        ? data.recommended_role[0].role 
+    const recommendedRole = Array.isArray(data?.recommended_role) && data.recommended_role.length > 0
+        ? data.recommended_role[0].role
         : (typeof data?.recommended_role === 'string' ? data.recommended_role : 'N/A');
 
     return (

@@ -1,14 +1,16 @@
 import uuid
 import asyncio
 import itertools
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
+from sqlalchemy.orm import Session
 
 from app.schemas.User import GithubProfile
 from app.services.github import get_total_commit, get_consistency, get_open_source, get_tech_stack, get_code, get_documenation_stats, get_github_profile
 from app.services.role_recommendation import get_role_recommendation
 from app.services.file_structure import get_file_structure_score
-from app.crud.User import update_code, update_code_quality, update_commit_status, update_document_status, update_github_profile, update_open_source, update_consistency_status, update_tech_stack
+from app.crud.User import update_code, update_code_quality, update_commit_status, update_document_status, update_github_profile, update_open_source, update_consistency_status, update_tech_stack, check_user, get_user_data, get_db, get_session
 from app.services.codequality import code_quality
+from app.services.helper_function import sanitize_data
 
 router = APIRouter()
 
@@ -27,6 +29,8 @@ def rate_comment_percentage(percentage):
         return 5
     else:
         return 2
+
+
 
 
 class AnalysisRequest:
@@ -72,9 +76,11 @@ class AnalysisRequest:
 
 
 async def background_analysis_worker(task_id: str, gitname: str, uid: str):
+    db = get_session()
     try:
         analysis_request = AnalysisRequest(uid=uid, gitname=gitname)
         result = await analysis_request.process()
+        result = sanitize_data(result)
 
         top_3_repo = dict(itertools.islice(
             dict(sorted(result["total_commit"]["commits_per_repo"].items(), key=lambda x: x[1], reverse=True)).items(), 3
@@ -113,20 +119,62 @@ async def background_analysis_worker(task_id: str, gitname: str, uid: str):
             "final_score": int((int(result["code_level"] / 10) + file_structure + comment_score) / 3),
         }
 
+        # Persist data to DB
+        update_github_profile(
+            uid=uid, 
+            profile=result["github_profile"],
+            recommended_role=result["role_recommendation"]["recommended_roles"],
+            detected_frameworks=result["role_recommendation"]["detected_frameworks"],
+            final_score=final_payload["final_score"],
+            file_structure=file_structure,
+            db=db
+        )
+        update_code_quality(uid, result["code_score"], str(result["code_level"]), db=db)
+        update_commit_status(uid, result["total_commit"]["total_commits"], result["total_commit"]["commits_per_repo"], db=db)
+        update_tech_stack(uid, list(result["tech_stack"]["all_languages"]), result["tech_stack"]["language_with_code_byte"], db=db)
+        update_open_source(
+            uid, 
+            result["open_source"]["pull_requests"], 
+            result["open_source"]["issues"],
+            result["open_source"]["repositories_contributed_to"],
+            result["open_source"]["code_reviews"],
+            db=db
+        )
+        update_consistency_status(
+            uid, 
+            result["consistency"]["total_contributions"],
+            result["consistency"]["current_streak"],
+            result["consistency"]["longest_streak"],
+            result["consistency"]["active_days_count"],
+            db=db
+        )
+        update_document_status(
+            uid, 
+            result["documentation"]["avg_lines_readme"],
+            result["documentation"]["comment_percentage"],
+            result["documentation"]["comment_pre_repos"],
+            result["documentation"]["final_dir"],
+            db=db
+        )
+        update_code(uid, result["code"]["code_data"],db=db)
+
         TASK_STORE[task_id] = {"status": "completed", "data": final_payload}
 
     except Exception as e:
+        db.rollback()
         TASK_STORE[task_id] = {"status": "failed", "error": str(e)}
+    finally:
+        db.close()
 
-
-# ── POST /api/v1/analysis/{gitname} ──────────────────────
-@router.post("/{gitname}")
-async def start_analysis(gitname: str, background_tasks: BackgroundTasks):
-    task_id = str(uuid.uuid4())
-    TASK_STORE[task_id] = {"status": "processing"}  # set BEFORE background task
-    background_tasks.add_task(background_analysis_worker, task_id, gitname, "1")
-    return {"message": "Analysis started.", "task_id": task_id, "status": "processing"}
-
+# ── GET /api/v1/analysis/check/{gitname} ──────────────────
+@router.get("/check/{gitname}")
+async def check_existing_analysis(gitname: str, db: Session = Depends(get_db)):
+    uid = check_user(username=gitname, db=db)
+    if uid:
+        data = get_user_data(uid, db=db)
+        if data:
+            return {"status": "completed", "data": data}
+    return {"status": "not_found"}
 
 # ── GET /api/v1/analysis/status/{task_id} ────────────────
 @router.get("/status/{task_id}")
@@ -135,3 +183,11 @@ async def get_analysis_status(task_id: str):
     if not task:
         raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found.")
     return task
+
+# ── POST /api/v1/analysis/{gitname} ──────────────────────
+@router.post("/{gitname}")
+async def start_analysis(gitname: str, background_tasks: BackgroundTasks):
+    task_id = str(uuid.uuid4())
+    TASK_STORE[task_id] = {"status": "processing"}
+    background_tasks.add_task(background_analysis_worker, task_id, gitname, gitname)
+    return {"message": "Analysis started.", "task_id": task_id, "status": "processing"}

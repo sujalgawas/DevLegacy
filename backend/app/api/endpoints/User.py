@@ -1,6 +1,7 @@
 from fastapi import APIRouter,Depends, HTTPException, status
 from app.schemas.User import Login, SignUp, Test
-from app.crud.User import get_session
+from app.crud.User import get_session, get_db
+from sqlalchemy.orm import Session
 
 from app.models.users import User
 from app.models.test import Testing
@@ -9,7 +10,7 @@ from app.services.helper_function import verify_token
 from firebase_admin import auth
 
 router = APIRouter()
-session = get_session()
+# session = get_session()
 
 
 @router.post("/login")
@@ -19,32 +20,32 @@ def login(login:Login):
     #postgres SQL session activate 
     
     if uid:
-        return {"message" : "user logged in successfull"},200
+        return {"message" : "user logged in successfull"}
     else:
-        return {"message" : "Error occured while loggin in"},401
+        raise HTTPException(status_code=401, detail="Error occured while loggin in")
 
 @router.post("/test")
-def test(test:Test):
+def test(test:Test, db: Session = Depends(get_db)):
     current_test = Testing(name = test.name,age = test.age,temp = test.temp)
-    session.add(current_test)
-    session.commit()
+    db.add(current_test)
+    db.commit()
     
-    return{"message":"working"},200
+    return{"message":"working"}
 
 @router.post("/signup")
-def signup(signup:SignUp):
+def signup(signup:SignUp, db: Session = Depends(get_db)):
     user = auth.create_user(email= signup.Email,password=signup.Password,
                             display_name = signup.UserName)
     current_uid = user.uid
     
     user = User(uid = current_uid,email = signup.Email, username = signup.UserName)
-    session.add(user)
-    session.commit()
+    db.add(user)
+    db.commit()
     
     if user.uid:
-        return {"message":"user created"},200
+        return {"message":"user created"}
     else:
-        return {"message":"Error creating user"},401
+        raise HTTPException(status_code=401, detail="Error creating user")
     
 
 @router.get("/")

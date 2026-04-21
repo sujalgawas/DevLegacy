@@ -255,3 +255,6 @@ ROLE_DATASET = {
         "WordPress"
     ]
 }
+
+def sanitize_data(data):
+    return data

@@ -6,7 +6,7 @@ from app.db.base import Base
 class Code_quality(Base):
     __tablename__ = 'code_quality'
     uid = Column(String, primary_key=True)
-    code_score = Integer
-    code_level = String
+    code_score = Column(Integer)
+    code_level = Column(String)
     
 #================ database models end ================#
