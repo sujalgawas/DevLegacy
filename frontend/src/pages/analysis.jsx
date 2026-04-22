@@ -80,6 +80,36 @@ const Analysis = () => {
         let pollInterval;
         let isMounted = true;
 
+        // Extracted so both the "resume" and "fresh start" paths can share the same poller
+        const startPolling = (taskId) => {
+            pollInterval = setInterval(async () => {
+                try {
+                    const statusData = await checkAnalysisStatus(taskId);
+
+                    if (statusData.status === "completed") {
+                        clearInterval(pollInterval);
+                        if (isMounted) {
+                            const result = statusData.data || statusData.result || statusData;
+                            if (!result || Object.keys(result).length === 0) {
+                                setError('Analysis completed but returned empty data.');
+                            } else {
+                                setData(result);
+                            }
+                            setLoading(false);
+                        }
+                    } else if (statusData.status === "failed") {
+                        clearInterval(pollInterval);
+                        if (isMounted) {
+                            setError(statusData.error || "Background task failed on the server.");
+                            setLoading(false);
+                        }
+                    }
+                } catch (pollErr) {
+                    console.warn("Polling error (might be temporary):", pollErr);
+                }
+            }, 10000);
+        };
+
         const loadData = async () => {
             if (!gitname) {
                 setError("No GitHub username provided in the URL.");
@@ -98,13 +128,31 @@ const Analysis = () => {
                     console.warn("Existing-data check failed, will start fresh:", checkErr);
                 }
 
+                // ── Case 1: Already done — render immediately
                 if (existingData?.status === "completed" && existingData?.data) {
-                    console.log("Existing data found:", existingData.data);
+                    console.log("Existing completed data found:", existingData.data);
                     setData(existingData.data);
                     setLoading(false);
                     return;
                 }
 
+                // ── Case 2: Job already queued/running — resume polling
+                const resumeTaskId =
+                    existingData?.task_id ||
+                    existingData?.taskId ||
+                    existingData?.id;
+
+                if (
+                    resumeTaskId &&
+                    (existingData?.status === "pending" || existingData?.status === "processing")
+                ) {
+                    console.log("Resuming poll for existing task:", resumeTaskId);
+                    setStatusMessage("Analysis already in progress, resuming…");
+                    startPolling(resumeTaskId);
+                    return; // skip startAnalysis — job is already queued
+                }
+
+                // ── Case 3: User not in DB — queue a fresh job
                 setStatusMessage("Requesting new analysis from server...");
                 const startData = await startAnalysis(gitname);
                 const taskId = startData?.task_id || startData?.taskId || startData?.id;
@@ -114,33 +162,7 @@ const Analysis = () => {
                 }
 
                 setStatusMessage("Analyzing repositories (this can take 5–15 minutes)...");
-
-                pollInterval = setInterval(async () => {
-                    try {
-                        const statusData = await checkAnalysisStatus(taskId);
-
-                        if (statusData.status === "completed") {
-                            clearInterval(pollInterval);
-                            if (isMounted) {
-                                const result = statusData.data || statusData.result || statusData;
-                                if (!result || Object.keys(result).length === 0) {
-                                    setError('Analysis completed but returned empty data.');
-                                } else {
-                                    setData(result);
-                                }
-                                setLoading(false);
-                            }
-                        } else if (statusData.status === "failed") {
-                            clearInterval(pollInterval);
-                            if (isMounted) {
-                                setError(statusData.error || "Background task failed on the server.");
-                                setLoading(false);
-                            }
-                        }
-                    } catch (pollErr) {
-                        console.warn("Polling error (might be temporary):", pollErr);
-                    }
-                }, 10000);
+                startPolling(taskId);
 
             } catch (err) {
                 console.error("Critical Error:", err);
