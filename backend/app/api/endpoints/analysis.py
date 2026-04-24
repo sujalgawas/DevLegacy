@@ -59,7 +59,7 @@ class AnalysisRequest:
             asyncio.to_thread(self.get_role_recommendation, self.gitname),
         )
 
-        code_level, code_score = self.code_quality(results[4])
+        code_score_num, code_level_label = self.code_quality(results[4])
 
         return {
             "total_commit": results[0],
@@ -70,8 +70,8 @@ class AnalysisRequest:
             "documentation": results[5],
             "github_profile": results[6],
             "role_recommendation": results[7],
-            "code_level": code_level,
-            "code_score": code_score,
+            "code_score_num": code_score_num,
+            "code_level_label": code_level_label,
         }
 
 
@@ -109,14 +109,14 @@ async def background_analysis_worker(task_id: str, gitname: str, uid: str):
             "code_reviews": result["open_source"]["code_reviews"],
             "all_languages": result["tech_stack"]["all_languages"],
             "most_used_language": list(top_languages),
-            "code_score": result["code_score"],
-            "code_level": int(result["code_level"]),
+            "code_score": result["code_level_label"],
+            "code_level": round(result["code_score_num"]),
             "average_lines_readme": result["documentation"]["avg_lines_readme"],
             "comment_percentage": float(f"{float(result['documentation']['comment_percentage']):.2f}"),
             "file_structure": file_structure,
             "detected_frameworks": result["role_recommendation"]["detected_frameworks"],
             "recommended_role": result["role_recommendation"]["recommended_roles"],
-            "final_score": int((int(result["code_level"] / 10) + file_structure + comment_score) / 3),
+            "final_score": int((int(result["code_score_num"] / 10) + file_structure + comment_score) / 3),
         }
 
         # Persist data to DB
@@ -129,7 +129,7 @@ async def background_analysis_worker(task_id: str, gitname: str, uid: str):
             file_structure=file_structure,
             db=db
         )
-        update_code_quality(uid, result["code_score"], str(result["code_level"]), db=db)
+        update_code_quality(uid, round(result["code_score_num"]), result["code_level_label"], db=db)
         update_commit_status(uid, result["total_commit"]["total_commits"], result["total_commit"]["commits_per_repo"], db=db)
         update_tech_stack(uid, list(result["tech_stack"]["all_languages"]), result["tech_stack"]["language_with_code_byte"], db=db)
         update_open_source(

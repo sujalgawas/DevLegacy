@@ -16,7 +16,7 @@ login(token=hugging_face_token)
 # ── Configuration ────────────────────────────────────────────────────────────
 REPO_ID       = "sujalgawas/my-codellama-experience-model"
 BASE_MODEL_ID = "codellama/CodeLlama-7b-hf"
-PTH_FILENAME  = "Codellama_v2.pth"
+PTH_FILENAME  = "Codellama_v3_E-2.pth"
 GGUF_FILENAME = "codellama.gguf"
 GGUF_Q4_NAME  = "codellama-q4.gguf"
 LORA_SCALE    = 1.0
@@ -270,7 +270,7 @@ def load_classifier():
 
     model = CodeClassifier()
 
-    state_dict = torch.load('./app/utils/Codellama_v2.pth', map_location="cpu")
+    state_dict = torch.load('./app/utils/Codellama_v3_E-2.pth', map_location="cpu")
 
     if "state_dict" in state_dict:
         state_dict = state_dict["state_dict"]
