@@ -11,6 +11,8 @@ services:
       - ./backend:/backend
     ports: 
       - "8082:8082"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - tunnel_network
     restart: unless-stopped
