@@ -1,4 +1,19 @@
 services:
+  db:
+    image: postgres:17-alpine
+    container_name: devlegacy_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 1234
+      POSTGRES_DB: dev
+    ports:
+      - "5434:5432"
+    volumes:
+      - devlegacy_postgres_data:/var/lib/postgresql/data
+    networks:
+      - tunnel_network
+
   devlegacy:
     build:
       context: .
@@ -7,14 +22,16 @@ services:
     container_name: devlegacy
     env_file:
       - backend/.env
+    environment:
+      DATABASE_URL: "postgresql://postgres:1234@db:5432/dev"
     volumes:
       - ./backend:/backend
     ports: 
       - "8082:8082"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     networks:
       - tunnel_network
+    depends_on:
+      - db
     restart: unless-stopped
 
   ngrok:
@@ -32,3 +49,6 @@ services:
 networks:
   tunnel_network:
     driver: bridge
+
+volumes:
+  devlegacy_postgres_data:

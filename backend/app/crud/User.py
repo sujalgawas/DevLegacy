@@ -14,7 +14,7 @@ from app.models.code_quality import Code_quality
 
 import os
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:1234@host.docker.internal:5432/dev")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:1234@localhost:5432/dev")
 engine = create_engine(DATABASE_URL)
 
 def get_session():
