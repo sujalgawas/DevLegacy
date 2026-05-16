@@ -6,6 +6,6 @@ psycopg2-binary
 jupyter-notebook-parser
 huggingface_hub
 transformers
-llama-cpp-python
+llama-cpp-python==0.2.90
 scikit-learn
 torch

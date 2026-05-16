@@ -221,3 +221,13 @@ def pipeline_function():
     if not model_gguf_q4.exists():
         print("Quantizing to Q4_K_M...")
         subprocess.run([str(quantize_exe), str(model_gguf), str(model_gguf_q4), QUANT_TYPE], check=True)
+    
+    from huggingface_hub import HfApi
+    api = HfApi()
+
+    api.upload_file(
+        path_or_fileobj=model_gguf_q4,
+        path_in_repo=GGUF_Q4_NAME,
+        repo_id=REPO_ID,
+        repo_type="model",
+    )

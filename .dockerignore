@@ -45,7 +45,7 @@ backend/env
 backend/cache
 
 #Big AI models
-backend/app/utils/
+#backend/app/utils/
 
 
 # Python cache
