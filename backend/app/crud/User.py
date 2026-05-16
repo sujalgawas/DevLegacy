@@ -12,7 +12,10 @@ from app.models.document_stat import document_stats
 from app.models.code import Code
 from app.models.code_quality import Code_quality
 
-engine = create_engine("postgresql://postgres:1234@localhost:5432/dev")
+import os
+
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:1234@localhost:5432/dev")
+engine = create_engine(DATABASE_URL)
 
 def get_session():
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -235,8 +238,8 @@ def get_user_data(uid, db: Session = session):
         "code_reviews": getattr(open_source_db, "code_reviews", {}),
         "all_languages": getattr(tech_stack_db, "all_languages", []),
         "most_used_language": top_languages,
-        "code_score": getattr(code_qual, "code_score", "N/A"),
-        "code_level": getattr(code_qual, "code_level", 0),
+        "code_score": getattr(code_qual, "code_level", "N/A"),
+        "code_level": getattr(code_qual, "code_score", 0),
         "average_lines_readme": getattr(document_stats_db, "avg_lines_readme", 0),
         "comment_percentage": getattr(document_stats_db, "comment_percentage", 0.0),
         "file_structure": getattr(profile_db, "file_structure", 0),

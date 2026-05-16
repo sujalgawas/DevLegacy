@@ -1,6 +1,7 @@
 ############################
 # Frontend (React / Vite)
 ############################
+frontend/
 
 # Logs
 logs
@@ -32,17 +33,24 @@ dist-ssr
 # Backend (Python / Flask / Django)
 ############################
 
-# Virtual environment
-backend/venv/
-backend/.venv/
-venv/
-.venv/
+# Virtual environment - multiple patterns to be safe
+**/venv/
+**/venv
+**/.venv/
+**/.venv
+**/env/
+backend/venv
+backend/.venv
+backend/env
+backend/cache
 
 #Big AI models
 backend/app/utils/
 
+
 # Python cache
 __pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
 
@@ -67,3 +75,8 @@ Thumbs.db
 .git
 .git/
 .gitignore
+
+# Other
+.github/
+duckdns/
+*.png
