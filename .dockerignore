@@ -38,6 +38,8 @@ backend/.venv/
 venv/
 .venv/
 
+#Big AI models
+backend/app/utils/
 
 # Python cache
 __pycache__/
