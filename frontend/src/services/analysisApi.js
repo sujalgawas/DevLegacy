@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://192.168.0.8:8082/api/v1';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://192.168.0.8:8082/api/v1';
 
 const apiFetch = async (url, options = {}) => {
     try {

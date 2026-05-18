@@ -56,7 +56,7 @@ __pycache__/
 
 # Environment variables
 .env
-.env.*
+.env.ngrok
 
 # Python build / distribution
 build/
