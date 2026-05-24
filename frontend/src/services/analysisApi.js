@@ -6,6 +6,7 @@ const apiFetch = async (url, options = {}) => {
             ...options,
             headers: {
                 'Content-Type': 'application/json',
+                'ngrok-skip-browser-warning': 'true',
                 ...(options.headers || {}),
             },
         });

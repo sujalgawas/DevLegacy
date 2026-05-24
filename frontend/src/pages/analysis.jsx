@@ -82,9 +82,11 @@ const Analysis = () => {
 
         // Extracted so both the "resume" and "fresh start" paths can share the same poller
         const startPolling = (taskId) => {
+            let consecutiveErrors = 0;
             pollInterval = setInterval(async () => {
                 try {
                     const statusData = await checkAnalysisStatus(taskId);
+                    consecutiveErrors = 0; // reset on success
 
                     if (statusData.status === "completed") {
                         clearInterval(pollInterval);
@@ -106,6 +108,14 @@ const Analysis = () => {
                     }
                 } catch (pollErr) {
                     console.warn("Polling error (might be temporary):", pollErr);
+                    consecutiveErrors += 1;
+                    if (consecutiveErrors >= 6) {
+                        clearInterval(pollInterval);
+                        if (isMounted) {
+                            setError("Lost connection to the analysis server. Please check your network and try again.");
+                            setLoading(false);
+                        }
+                    }
                 }
             }, 10000);
         };
