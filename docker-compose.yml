@@ -24,6 +24,7 @@ services:
       - backend/.env
     environment:
       DATABASE_URL: "postgresql://postgres:1234@db:5432/dev"
+      REDIS_URL: "redis://redis:6379/0"
     volumes:
       - ./backend:/backend
     ports: 
@@ -32,7 +33,17 @@ services:
       - tunnel_network
     depends_on:
       - db
+      - redis
     restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: devlegacy_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    networks:
+      - tunnel_network
 
   ngrok:
     image: ngrok/ngrok:latest

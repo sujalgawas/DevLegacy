@@ -1,8 +1,11 @@
 import uuid
 import asyncio
 import itertools
+import os
+import json
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from sqlalchemy.orm import Session
+from redis import asyncio as aioredis
 
 from app.schemas.User import GithubProfile
 from app.services.github import get_total_commit, get_consistency, get_open_source, get_tech_stack, get_code, get_documenation_stats, get_github_profile
@@ -15,6 +18,10 @@ from app.services.helper_function import sanitize_data
 router = APIRouter()
 
 TASK_STORE = {}
+
+# Initialize Redis connection asynchronously
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+redis_client = aioredis.from_url(REDIS_URL, decode_responses=True)
 
 def rate_comment_percentage(percentage):
     if percentage < 0 or percentage > 100:
@@ -158,6 +165,13 @@ async def background_analysis_worker(task_id: str, gitname: str, uid: str):
         )
         update_code(uid, result["code"]["code_data"],db=db)
 
+        # Invalidate cache for this user since data is now updated
+        cache_key = f"analysis_check:{gitname}"
+        try:
+            await redis_client.delete(cache_key)
+        except Exception as e:
+            print(f"Redis delete error for {gitname}: {e}")
+
         TASK_STORE[task_id] = {"status": "completed", "data": final_payload}
 
     except Exception as e:
@@ -169,11 +183,30 @@ async def background_analysis_worker(task_id: str, gitname: str, uid: str):
 # ── GET /api/v1/analysis/check/{gitname} ──────────────────
 @router.get("/check/{gitname}")
 async def check_existing_analysis(gitname: str, db: Session = Depends(get_db)):
+    cache_key = f"analysis_check:{gitname}"
+
+    # Try fetching from Redis first (production-safe / fail-safe)
+    try:
+        cached_data = await redis_client.get(cache_key)
+        if cached_data:
+            return json.loads(cached_data)
+    except Exception as e:
+        # Fallback to DB if Redis has issues (fail-safe)
+        print(f"Redis get error (falling back to database): {e}")
+
+    # Cache miss or Redis error: Query Postgres database
     uid = check_user(username=gitname, db=db)
     if uid:
         data = get_user_data(uid, db=db)
         if data:
-            return {"status": "completed", "data": data}
+            response_data = {"status": "completed", "data": data}
+            # Store in Redis (fail-safe, up to 1 day expiration)
+            try:
+                await redis_client.set(cache_key, json.dumps(response_data), ex=86400)
+            except Exception as e:
+                print(f"Redis set error: {e}")
+            return response_data
+
     return {"status": "not_found"}
 
 # ── GET /api/v1/analysis/status/{task_id} ────────────────
