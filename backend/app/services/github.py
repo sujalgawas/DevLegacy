@@ -267,22 +267,22 @@ def get_tech_stack(gitname: str):
             language_with_code_byte[name] = language_with_code_byte.get(name, 0) + size
         
     result = {"all_languages": all_languages, "language_with_code_byte": language_with_code_byte}
-    return result 
-
+    return result
+    
 def get_code(gitname: str):
     valid_extensions = (
-        ".py", ".js", ".java", ".c", ".cpp", ".cc", ".cxx", ".go", 
-        ".ts", ".tsx", ".php", ".cs", ".rs", ".sql", "Dockerfile", 
-        ".dockerfile", ".kt", ".html", ".css", ".lua"
+        ".py", ".js", ".java", ".c", ".cpp", ".cc", ".cxx", ".go",
+        ".ts", ".tsx", ".php", ".cs", ".rs", ".sql", ".dockerfile",
+        ".kt","kts",".html", ".css", ".lua"
     )
 
     def build_nested_query(depth):
+        # Start with the base case (a plain blob leaf)
         query_part = """
           object {
             ... on Blob { text }
           }
         """
-        
         for _ in range(depth):
             query_part = f"""
             object {{
@@ -298,17 +298,46 @@ def get_code(gitname: str):
             """
         return query_part
 
-    nested_structure = build_nested_query(5)
+    def extract_files_from_entries(entries_list, current_path=""):
+        found_code = []
+        
+        for entry in entries_list:
+            file_name = entry.get("name", "")
+            file_type = entry.get("type", "")
+            file_path = f"{current_path}/{file_name}" if current_path else file_name
 
-    query = f"""
+            if file_type == "blob":
+                is_valid = file_name.endswith(valid_extensions) or file_name == "Dockerfile"
+                
+                if is_valid:
+                    text = entry.get("object", {}).get("text")
+                    if text is not None:  # skip binaries (text is null), but allow empty files
+                        found_code.append({"path": file_path, "content": text})
+
+                elif file_name.endswith(".ipynb"):
+                    text = entry.get("object", {}).get("text")
+                    if text is not None:
+                        found_code.append({"path": file_path, "content": jupternotebook_cleaner(text)})
+
+            elif file_type == "tree":
+                sub_entries = entry.get("object", {}).get("entries", [])
+                if sub_entries:
+                    found_code.extend(extract_files_from_entries(sub_entries, file_path))
+        
+        return found_code
+
+    variables = {"owner": gitname}
+
+    nested_structure = build_nested_query(8)
+
+    pinned_query = f"""
     query($owner: String!) {{
         user(login: $owner) {{
-            pinnedItems(first: 5, types: REPOSITORY) {{
+            pinnedItems(first: 6, types: REPOSITORY) {{
                 edges {{
                     node {{
                         ... on Repository {{
                             name
-                            # We inject the generated structure here
                             object(expression: "HEAD:") {{
                                 ... on Tree {{
                                     entries {{
@@ -326,50 +355,68 @@ def get_code(gitname: str):
     }}
     """
 
-    variables = {"owner": gitname}
-    result = github_api(query, variables)
-    
+    result = github_api(pinned_query, variables)
     repos = result.get("data", {}).get("user", {}).get("pinnedItems", {}).get("edges", [])
     
+    if not repos:
+        print("trying fallback_query")
+        fallback_query = f"""
+        query($owner: String!) {{
+            user(login: $owner) {{
+                repositories(
+                    first: 3,
+                    ownerAffiliations: OWNER,
+                    orderBy: {{ field: UPDATED_AT, direction: DESC }}
+                ) {{
+                    edges {{
+                        node {{
+                            name
+                            object(expression: "HEAD:") {{
+                                ... on Tree {{
+                                    entries {{
+                                        name
+                                        type
+                                        {nested_structure}
+                                    }}
+                                }}
+                            }}
+                        }}
+                    }}
+                }}
+            }}
+        }}
+        """
+        result = github_api(fallback_query, variables)
+        repos = result.get("data", {}).get("user", {}).get("repositories", {}).get("edges", [])
+
+        if not repos:
+            print("[get_code] Warning: No repos found. Raw API result:", result)
+
     code_data = {}
 
-    def extract_files_from_entries(entries_list):
-        found_code = []
-        for entry in entries_list:
-            file_name = entry.get("name", "")
-            file_type = entry.get("type", "")
-                        
-            if file_type == "blob":
-                if file_name.endswith(valid_extensions):
-                    text = entry.get("object", {}).get("text", "")
-                    if text:
-                        found_code.append(text)
-                elif file_name.endswith(".ipynb"):
-                    text = entry.get("object",{}).get("text","")
-                    if text:
-                        processed_text = jupternotebook_cleaner(text)
-                        found_code.append(processed_text)
-                    
-            elif file_type == "tree":
-                sub_entries = entry.get("object", {}).get("entries", [])
-                if sub_entries:
-                    found_code.extend(extract_files_from_entries(sub_entries))
-                    
-        return found_code
-    
     for repo in repos:
         repo_node = repo.get("node", {})
-        repo_name = repo_node.get("name")
-    
-        root_entries = repo_node.get("object", {}).get("entries", [])
+
+        print("checking repo_node",repo_node)
+
+        if repo_node:
+            repo_name = repo_node.get("name")
+            root_entries = repo_node.get("object", {}).get("entries", [])
+        else:
+            repo_name = repo.get("name")
+            root_entries = repo.get("object", {}).get("entries", [])
+
+        if not repo_name:
+            continue
 
         repo_files = extract_files_from_entries(root_entries)
-        
+
         if repo_files:
             code_data[repo_name] = repo_files
-    
-    result = {"code_data": code_data}
-    return result
+
+    print("code data in get_code function",code_data)
+
+    return {"code_data": code_data}
 
 from urllib.parse import urlparse
 
@@ -411,7 +458,8 @@ def get_code_framework(repo_url: str):
             """
         return query_part
 
-    nested_structure = build_nested_query(5)
+    #increased build nest 5 -> 8 for java and andriod projects
+    nested_structure = build_nested_query(8)
 
     query = f"""
     query($owner: String!, $name: String!) {{
@@ -440,7 +488,13 @@ def get_code_framework(repo_url: str):
     root_entries = repo_data.get("object", {}).get("entries", [])
     
     def extract_files_from_entries(entries_list):
+        """
+            entries_list : list
+            function created to extract code from github graphql
+            pre-requisite :- name -> type -> blob (valid extensions)
+        """
         found_code = []
+
         for entry in entries_list:
             file_name = entry.get("name", "")
             file_type = entry.get("type", "")
@@ -461,7 +515,7 @@ def get_code_framework(repo_url: str):
                 sub_entries = entry.get("object", {}).get("entries", [])
                 if sub_entries:
                     found_code.extend(extract_files_from_entries(sub_entries))
-                    
+
         return found_code
 
     return extract_files_from_entries(root_entries)
@@ -528,15 +582,40 @@ def get_documenation_stats(gitname : str):
     total_code = 0
     commented_code = 0
     final_dir = {}
-    for repo in pin_repo:
-        url = repo.get("node",{}).get("url",[])
-        name = repo.get("node",{}).get("name",[])
-        result, file = get_comment_to_code(url)
-        final_dir[name] = file
-        total_code += result['code']
-        commented_code += result['comment']
+
+    if pin_repo:
+        for repo in pin_repo:
+            url = repo.get("node", {}).get("url", "")
+            name = repo.get("node", {}).get("name", "")
+            cloc_result = get_comment_to_code(url)
+            if cloc_result is None:
+                continue
+            cloc_data, file = cloc_result
+            if cloc_data is None:
+                continue
+            final_dir[name] = file
+            total_code += cloc_data.get('code', 0)
+            commented_code += cloc_data.get('comment', 0)
+    else:
+        import random
+        sampled_repos = random.sample(repos, min(3, len(repos)))
+        for repo in sampled_repos:
+            name = repo.get("name", "")
+            url = f"https://github.com/{gitname}/{name}"
+            cloc_result = get_comment_to_code(url)
+            if cloc_result is None:
+                continue
+            cloc_data, file = cloc_result
+            if cloc_data is None:
+                continue
+            final_dir[name] = file
+            total_code += cloc_data.get('code', 0)
+            commented_code += cloc_data.get('comment', 0)
+
+    total = total_code + commented_code
     
-    comment_percentage = 100/(total_code + commented_code) * commented_code
+    comment_percentage = (100 / total * commented_code) if total > 0 else 0
+    
     comment_pre_repos = {"total_code":total_code,"commented_code":commented_code}
     
     result =  {"avg_lines_readme": avg_lines_readme,

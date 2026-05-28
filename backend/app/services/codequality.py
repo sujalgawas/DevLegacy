@@ -113,27 +113,53 @@ llm = load_llama()
 classifier = load_classifier()
 
 def code_quality(text):
+    # Extract code_data dictionary if text is the wrapper response
+    if isinstance(text, dict) and "code_data" in text:
+        text = text["code_data"]
+
+    code_snippets = []
+
+    #clean_data fails and returns dict(andriod dev)
+    if isinstance(text, dict):
+        for key, value in text.items():
+            if not isinstance(value, list):
+                value = [value]
+                
+            for file_item in value:
+                content = ""
+                if isinstance(file_item, dict):
+                    content = file_item.get("content") or file_item.get("text") or ""
+                elif isinstance(file_item, str):
+                    content = file_item
+                
+                if content.strip():
+                    code_snippets.append(content)
+
+    elif isinstance(text, list):
+        for file_item in text:
+            content = ""
+            if isinstance(file_item, dict):
+                content = file_item.get("content") or file_item.get("text") or ""
+            elif isinstance(file_item, str):
+                content = file_item
+            
+            if content.strip():
+                code_snippets.append(content)
     
+    #remove this for testing repos with non pinned projects or andriod dev projects
+    if not code_snippets:
+        return 0, "Intern"
+   
+    samples = random.sample(code_snippets, min(len(code_snippets), 10))
+
     code = []
 
-    for value in text.values():
-
-        if isinstance(value, dict):
-            value = list(value.values())
-
-        samples = random.sample(value, min(len(value), 10))
-
-        for item in samples:
-
-            # convert list -> string if needed
-            if isinstance(item, list):
-                item = " ".join(item)
-
-            cleaned = " ".join(item.split()[:500])
-            code.append(cleaned)
+    for item in samples:
+        cleaned = " ".join(item.split()[:500])
+        code.append(cleaned)
 
     scores = [float(predict(llm, classifier, snippet)) for snippet in code]
-
+    
     score = sum(scores) / len(scores)
     
     if score < 0.3:
