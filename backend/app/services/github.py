@@ -328,22 +328,24 @@ def get_code(gitname: str):
 
     variables = {"owner": gitname}
 
-    nested_structure = build_nested_query(8)
+    try:
+        nested_structure = build_nested_query(8)
 
-    pinned_query = f"""
-    query($owner: String!) {{
-        user(login: $owner) {{
-            pinnedItems(first: 6, types: REPOSITORY) {{
-                edges {{
-                    node {{
-                        ... on Repository {{
-                            name
-                            object(expression: "HEAD:") {{
-                                ... on Tree {{
-                                    entries {{
-                                        name
-                                        type
-                                        {nested_structure}
+        pinned_query = f"""
+        query($owner: String!) {{
+            user(login: $owner) {{
+                pinnedItems(first: 6, types: REPOSITORY) {{
+                    edges {{
+                        node {{
+                            ... on Repository {{
+                                name
+                                object(expression: "HEAD:") {{
+                                    ... on Tree {{
+                                        entries {{
+                                            name
+                                            type
+                                            {nested_structure}
+                                        }}
                                     }}
                                 }}
                             }}
@@ -352,12 +354,42 @@ def get_code(gitname: str):
                 }}
             }}
         }}
-    }}
-    """
+        """
 
-    result = github_api(pinned_query, variables)
-    repos = result.get("data", {}).get("user", {}).get("pinnedItems", {}).get("edges", [])
-    
+        result = github_api(pinned_query, variables)
+        repos = result.get("data", {}).get("user", {}).get("pinnedItems", {}).get("edges", [])
+    except:
+        #fallback to 5 to prevent graphql query error
+        nested_structure = build_nested_query(5)
+
+        pinned_query = f"""
+        query($owner: String!) {{
+            user(login: $owner) {{
+                pinnedItems(first: 6, types: REPOSITORY) {{
+                    edges {{
+                        node {{
+                            ... on Repository {{
+                                name
+                                object(expression: "HEAD:") {{
+                                    ... on Tree {{
+                                        entries {{
+                                            name
+                                            type
+                                            {nested_structure}
+                                        }}
+                                    }}
+                                }}
+                            }}
+                        }}
+                    }}
+                }}
+            }}
+        }}
+        """
+
+        result = github_api(pinned_query, variables)
+        repos = result.get("data", {}).get("user", {}).get("pinnedItems", {}).get("edges", [])
+        
     if not repos:
         print("trying fallback_query")
         fallback_query = f"""
@@ -457,29 +489,53 @@ def get_code_framework(repo_url: str):
             }}
             """
         return query_part
+    try:
+        #increased build nest 5 -> 8 for java and andriod projects
+        nested_structure = build_nested_query(8)
 
-    #increased build nest 5 -> 8 for java and andriod projects
-    nested_structure = build_nested_query(8)
-
-    query = f"""
-    query($owner: String!, $name: String!) {{
-        repository(owner: $owner, name: $name) {{
-            object(expression: "HEAD:") {{
-                ... on Tree {{
-                    entries {{
-                        name
-                        type
-                        {nested_structure}
+        query = f"""
+        query($owner: String!, $name: String!) {{
+            repository(owner: $owner, name: $name) {{
+                object(expression: "HEAD:") {{
+                    ... on Tree {{
+                        entries {{
+                            name
+                            type
+                            {nested_structure}
+                        }}
                     }}
                 }}
             }}
         }}
-    }}
-    """
+        """
 
-    variables = {"owner": owner, "name": repo_name}
-    result = github_api(query, variables)
+        variables = {"owner": owner, "name": repo_name}
+        result = github_api(query, variables)
     
+    except:
+        #fallback to 5 nested query for query graphql error
+        nested_structure = build_nested_query(5)
+
+        query = f"""
+        query($owner: String!, $name: String!) {{
+            repository(owner: $owner, name: $name) {{
+                object(expression: "HEAD:") {{
+                    ... on Tree {{
+                        entries {{
+                            name
+                            type
+                            {nested_structure}
+                        }}
+                    }}
+                }}
+            }}
+        }}
+        """
+
+        variables = {"owner": owner, "name": repo_name}
+        result = github_api(query, variables)
+    
+
     repo_data = result.get("data", {}).get("repository", {})
     
     if not repo_data or not repo_data.get("object"):
