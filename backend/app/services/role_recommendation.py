@@ -17,34 +17,15 @@ GITHUB_TOKEN = os.getenv("github_access_token", "")
 # =============================================================================
 # VOCAB / ROLE MATRIX
 # =============================================================================
-# Frameworks are categorical labels, not free text -- so instead of running
-# them through CountVectorizer's tokenizer (which splits "Next.js" into
-# "next" + "js" and silently shares that "js" token with Vue.js, Nuxt.js,
-# Three.js, Express.js...), we build a fixed-vocabulary multi-hot matrix by
-# hand. Each framework is its own independent dimension, no collisions.
+
 
 FRAMEWORK_VOCAB = sorted(FRAMEWORK_TIERS.keys())
 FRAMEWORK_INDEX = {fw: i for i, fw in enumerate(FRAMEWORK_VOCAB)}
 
 role_name = list(ROLE_DATASET.keys())
 
-# Only tier 1 (primary frameworks) and tier 3 (infra/db) are ever actually
-# detected -- tier 2 is filtered out in _detect_frameworks. Several
-# ROLE_DATASET lists (Backend, Frontend, AI/ML, Mobile, Game) still include
-# tier-2 names for descriptive completeness (Celery, jQuery, Pandas, etc).
-# Left in, those become permanent dead weight in the role vector -- they
-# inflate its norm but can never be matched, which quietly penalizes those
-# roles in cosine similarity relative to roles like Database Engineer/DevOps
-# that happen to be built entirely out of detectable tier-1/3 names. Filter
-# them out here so every role vector only contains things that could ever
-# actually score.
 DETECTABLE_TIERS = {1, 3}
 
-# Tier-3 (database/infra) tools show up as supporting infrastructure in
-# nearly every serious project -- Postgres/Redis/Docker don't make someone
-# a "Database Engineer" the way PyTorch makes someone an ML engineer. Down-
-# weight tier-3 evidence in the user's vector so it can nudge a score but
-# not dominate it the way a primary framework choice should.
 TIER_WEIGHT = {1: 1.0, 3: 0.35}
 
 
