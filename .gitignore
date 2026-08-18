@@ -48,6 +48,7 @@ env/
 #AI files
 backend/app/utils/
 backend/cache/
+backend/.cache/
 
 # Python cache
 __pycache__/
