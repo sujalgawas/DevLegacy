@@ -49,6 +49,9 @@ env/
 backend/app/utils/
 backend/cache/
 backend/.cache/
+backend/app/.cache/
+gguf_workspace/
+*.gguf
 
 # Python cache
 __pycache__/

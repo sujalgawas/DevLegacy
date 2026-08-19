@@ -34,7 +34,7 @@ services:
     depends_on:
       - db
       - redis
-    restart: unless-stopped
+    #restart: unless-stopped
 
   redis:
     image: redis:7-alpine

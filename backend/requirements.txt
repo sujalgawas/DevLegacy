@@ -5,9 +5,9 @@ alembic
 psycopg2-binary
 jupyter-notebook-parser
 huggingface_hub
-transformers
-llama-cpp-python==0.2.90
 scikit-learn
-torch
 redis
-peft
+# llama-cpp-python for quantized GGUF inference (low RAM, CPU-only)
+# NOTE: torch / transformers / peft are NOT needed on the server anymore.
+#       They are only needed locally to run convert_to_gguf.py.
+llama-cpp-python==0.3.9
