@@ -72,24 +72,26 @@ def load_model(base_model_repo = BASE_MODEL_REPO, adapter_repo=ADAPTER_MODEL_REP
 
 model, tokenizer = load_model()
 
-def inference(messages: str, max_new_tokens=300):
+def inference(messages: str, max_new_tokens=150):
     prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
     enc = tokenizer(prompt, return_tensors="pt").to(model.device)
     with torch.no_grad():
         out = model.generate(**enc, max_new_tokens=max_new_tokens, temperature=0.0, do_sample=False)
     return tokenizer.decode(out[0][enc["input_ids"].shape[1]:], skip_special_tokens=True)
 
-def score_normalize(response:dict):
-    flaw_count = response['flaw_count']
-    flaws = response['flaws']
-    severity = [item['severity'] for item in flaws]
-    
+def score_normalize(response: dict):
+    flaws = response.get('flaws', [])
+
     score = 100
-    
-    for item in severity:
-        score -= SEVERITY_MAP[str((item.lower()))]
-    
-    return score
+    for item in flaws:
+        raw_severity = item.get('severity')
+        if raw_severity is None:
+            continue
+        penalty = SEVERITY_MAP.get(str(raw_severity).lower().strip())
+        if penalty is not None:
+            score -= penalty
+
+    return max(score, 0)
     
 def code_quality(code):
     """Analyse code quality from a dict or list of file snippets.
@@ -144,7 +146,7 @@ def code_quality(code):
     if not code_snippets:
         return 0, 'Intern'
 
-    samples = random.sample(code_snippets, min(len(code_snippets), 10))
+    samples = random.sample(code_snippets, min(len(code_snippets), 5))
 
     scores = []
     for snippet in samples:
@@ -176,21 +178,25 @@ def model_run(code_sample):
     {"role": "user", "content": user_message},
     ]
     
-    #loop in case of Type error
-    for _ in range(3):
-        response = inference(message)
+    # Loop up to 3 times in case of malformed output
+    parsed_response = None
+    for attempt in range(3):
+        raw = inference(message)
         try:
-            response = json.loads(response)
-            
-            if 'flaw_count' in response and 'flaws' in response:
+            candidate = json.loads(raw)
+            if isinstance(candidate, dict) and 'flaws' in candidate:
+                parsed_response = candidate
                 break
-                       
-        except TypeError as E:
-            print(f"{E} exception retrying")
-        except Exception as E:
-            print(f"exception {E}")
-    score = score_normalize(response) if response is not None else None
+            else:
+                print(f"Attempt {attempt+1}: unexpected structure: {candidate}")
+        except (json.JSONDecodeError, TypeError) as e:
+            print(f"Attempt {attempt+1}: parse error ({e}), raw={raw[:200]!r}")
 
+    if parsed_response is None:
+        print("model_run: all retries failed, returning None")
+        return None
+
+    score = score_normalize(parsed_response)
     return score
 
 if __name__ == '__main__':

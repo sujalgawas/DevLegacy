@@ -1,35 +1,33 @@
-import requests
-import re
+import logging
 import os
+import re
 from collections import defaultdict
+
+import numpy as np
 from dotenv import load_dotenv
 from sklearn.metrics.pairwise import cosine_similarity
-import numpy as np
 
-from app.services.github import _get_user_repos, _get_repo_code_data
-from app.services.helper_function import FRAMEWORK_KEYWORDS, FRAMEWORK_TIERS, MIN_MATCHES, ROLE_DATASET
+from app.services.helper_function import (
+    FRAMEWORK_KEYWORDS,
+    FRAMEWORK_TIERS,
+    MIN_MATCHES,
+    ROLE_DATASET,
+    github_api,
+)
 
 load_dotenv()
+logger = logging.getLogger(__name__)
 
-GITHUB_TOKEN = os.getenv("github_access_token", "")
+# ── Vocab / Role Matrix ───────────────────────────────────────────────────────
 
-
-# =============================================================================
-# VOCAB / ROLE MATRIX
-# =============================================================================
-
-
-FRAMEWORK_VOCAB = sorted(FRAMEWORK_TIERS.keys())
-FRAMEWORK_INDEX = {fw: i for i, fw in enumerate(FRAMEWORK_VOCAB)}
-
-role_name = list(ROLE_DATASET.keys())
-
+FRAMEWORK_VOCAB  = sorted(FRAMEWORK_TIERS.keys())
+FRAMEWORK_INDEX  = {fw: i for i, fw in enumerate(FRAMEWORK_VOCAB)}
+role_name        = list(ROLE_DATASET.keys())
 DETECTABLE_TIERS = {1, 3}
+TIER_WEIGHT      = {1: 1.0, 3: 0.35}
 
-TIER_WEIGHT = {1: 1.0, 3: 0.35}
 
-
-def _build_role_matrix():
+def _build_role_matrix() -> np.ndarray:
     matrix = np.zeros((len(ROLE_DATASET), len(FRAMEWORK_VOCAB)))
     for row, frameworks in enumerate(ROLE_DATASET.values()):
         for fw in frameworks:
@@ -41,42 +39,52 @@ def _build_role_matrix():
 role_matrix = _build_role_matrix()
 
 
-# =============================================================================
-# FRAMEWORK DETECTION
-# =============================================================================
+# ── Pre-compiled regex patterns (compiled once at module load) ────────────────
 
-def _detect_frameworks(code_data):
+def _compile_patterns() -> dict:
+    compiled: dict = {}
+    for framework, tier in FRAMEWORK_TIERS.items():
+        if tier not in DETECTABLE_TIERS:
+            continue
+        raw_patterns = FRAMEWORK_KEYWORDS.get(
+            framework,
+            [r"\b" + re.escape(framework.lower()) + r"\b"],
+        )
+        try:
+            compiled[framework] = [
+                re.compile(p, re.IGNORECASE) for p in raw_patterns
+            ]
+        except re.error as exc:
+            logger.warning("Skipping invalid regex for %s: %s", framework, exc)
+    return compiled
+
+
+_COMPILED_PATTERNS: dict = _compile_patterns()
+
+
+# ── Framework Detection ───────────────────────────────────────────────────────
+
+def _detect_frameworks(code_data: str) -> list:
     if not code_data:
         return []
 
     code_lower = code_data.lower()
     detected = []
 
-    for framework, tier in FRAMEWORK_TIERS.items():
-        patterns = FRAMEWORK_KEYWORDS.get(framework, [r"\b" + re.escape(framework.lower()) + r"\b"])
-
-        total_matches = 0
-        for pattern in patterns:
-            matches = re.findall(pattern, code_lower)
-            total_matches += len(matches)
-
+    for framework, patterns in _COMPILED_PATTERNS.items():
+        tier = FRAMEWORK_TIERS.get(framework, 1)
+        total_matches = sum(len(p.findall(code_lower)) for p in patterns)
         threshold = MIN_MATCHES.get(tier, 1)
 
-        if total_matches >= threshold and tier in (1, 3):
+        if total_matches >= threshold:
             detected.append(framework)
 
     return detected
 
 
-# =============================================================================
-# ROLE RECOMMENDATION
-# =============================================================================
+# ── Role Recommendation ───────────────────────────────────────────────────────
 
-def _vectorize_user(framework_counts: dict):
-    """Build a user vector weighted by how many repos each framework
-    appeared in, instead of a flat 0/1 'was it seen at all'. This is what
-    lets someone with 9 backend repos and 1 stray frontend repo actually
-    score as backend-leaning rather than tying the two together."""
+def _vectorize_user(framework_counts: dict) -> np.ndarray:
     vec = np.zeros((1, len(FRAMEWORK_VOCAB)))
     for fw, count in framework_counts.items():
         if fw in FRAMEWORK_INDEX:
@@ -85,12 +93,7 @@ def _vectorize_user(framework_counts: dict):
     return vec
 
 
-def _label_full_stack(results, margin=0.7):
-    """If Frontend and Backend are the top two roles and reasonably close,
-    surface 'Full Stack Developer' instead of forcing a single winner.
-    ROLE_DATASET has no Full Stack entry of its own on purpose -- this is
-    a legible, tunable rule rather than hoping the vector space produces
-    a 'full stack' cluster on its own."""
+def _label_full_stack(results: list, margin: float = 0.7) -> list:
     if len(results) < 2:
         return results
 
@@ -103,11 +106,9 @@ def _label_full_stack(results, margin=0.7):
     return results
 
 
-def _get_top_roles(framework_counts: dict, top_n=3):
+def _get_top_roles(framework_counts: dict, top_n: int = 3) -> list:
     user_vector = _vectorize_user(framework_counts)
-
     similarity_scores = cosine_similarity(user_vector, role_matrix)[0]
-
     top_indices = np.argsort(similarity_scores)[::-1][:top_n]
 
     results = []
@@ -119,35 +120,70 @@ def _get_top_roles(framework_counts: dict, top_n=3):
     return _label_full_stack(results)
 
 
-# =============================================================================
-# MAIN FUNCTION (called from analysis.py)
-# =============================================================================
+# ── Main Entry Point ──────────────────────────────────────────────────────────
 
-def get_role_recommendation(gitname: str):
+def get_role_recommendation(gitname: str) -> dict:
     """
-    Scan all the user's repos (max 50), detect frameworks,
-    and return recommended roles based on detected frameworks.
+    Fetch manifests and topics from user repos (up to 50) via GraphQL,
+    detect frameworks using pre-compiled regex, and compute cosine-similarity role scores.
     """
-    repos = _get_user_repos(gitname, max_repos=50)
+    query = """
+    query($owner: String!) {
+        user(login: $owner) {
+            repositories(first: 50, ownerAffiliations: OWNER, isFork: false) {
+                nodes {
+                    name
+                    repositoryTopics(first: 20) {
+                        nodes { topic { name } }
+                    }
+                    languages(first: 10) {
+                        nodes { name }
+                    }
+                    packageJson: object(expression: "HEAD:package.json") { ... on Blob { text } }
+                    requirements: object(expression: "HEAD:requirements.txt") { ... on Blob { text } }
+                    pyproject: object(expression: "HEAD:pyproject.toml") { ... on Blob { text } }
+                    pomXml: object(expression: "HEAD:pom.xml") { ... on Blob { text } }
+                    buildGradle: object(expression: "HEAD:build.gradle") { ... on Blob { text } }
+                    goMod: object(expression: "HEAD:go.mod") { ... on Blob { text } }
+                    cargoToml: object(expression: "HEAD:Cargo.toml") { ... on Blob { text } }
+                    dockerfile: object(expression: "HEAD:Dockerfile") { ... on Blob { text } }
+                    dockerCompose: object(expression: "HEAD:docker-compose.yml") { ... on Blob { text } }
+                }
+            }
+        }
+    }
+    """
+    try:
+        data = github_api(query, {"owner": gitname})
+        repos = data.get("data", {}).get("user", {}).get("repositories", {}).get("nodes", [])
+    except Exception as exc:
+        logger.warning("get_role_recommendation GraphQL query failed for %s: %s", gitname, exc)
+        return {"detected_frameworks": [], "recommended_roles": []}
 
-    framework_counts = defaultdict(int)
+    framework_counts: dict = defaultdict(int)
 
     for repo in repos:
-        owner = repo["owner"]
-        name = repo["name"]
+        combined_text_parts = [repo.get("name", "")]
 
-        # skip forked repos
-        if repo.get("fork", False):
-            continue
+        # Topics
+        topics = repo.get("repositoryTopics", {}).get("nodes", [])
+        for t in topics:
+            combined_text_parts.append(t.get("topic", {}).get("name", ""))
 
-        code_data = _get_repo_code_data(owner, name)
+        # Languages
+        langs = repo.get("languages", {}).get("nodes", [])
+        for l in langs:
+            combined_text_parts.append(l.get("name", ""))
 
-        if not code_data:
-            continue
+        # Manifest files
+        for key in ("packageJson", "requirements", "pyproject", "pomXml",
+                    "buildGradle", "goMod", "cargoToml", "dockerfile", "dockerCompose"):
+            blob = repo.get(key)
+            if blob and blob.get("text"):
+                combined_text_parts.append(blob["text"])
 
-        frameworks = _detect_frameworks(code_data)
-
-        for fw in frameworks:
+        repo_code_data = "\n".join(combined_text_parts)
+        for fw in _detect_frameworks(repo_code_data):
             framework_counts[fw] += 1
 
     detected_frameworks = sorted(framework_counts.keys())
@@ -155,9 +191,7 @@ def get_role_recommendation(gitname: str):
     if not detected_frameworks:
         return {"detected_frameworks": [], "recommended_roles": []}
 
-    recommended_roles = _get_top_roles(framework_counts)
-
     return {
         "detected_frameworks": detected_frameworks,
-        "recommended_roles": recommended_roles
+        "recommended_roles":   _get_top_roles(framework_counts),
     }
