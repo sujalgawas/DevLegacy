@@ -50,7 +50,7 @@ N_THREADS   = 4      # CPU threads for inference
 N_GPU_LAYERS = 0     # keep at 0 (CPU-only); set > 0 only if you have a GPU
 
 # ── Scoring ───────────────────────────────────────────────────────────────────
-SEVERITY_MAP = {"minor": 10, "major": 20, "critical": 30}
+SEVERITY_MAP = {"minor": 20, "major": 40, "critical": 60}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -158,6 +158,7 @@ def model_run(code_sample: str):
 
     for attempt in range(3):
         raw = inference(messages)
+        print(f"[inference] {raw}")
         # Strip markdown fences if model wraps output in ```json ... ```
         cleaned = raw.strip()
         if cleaned.startswith("```"):

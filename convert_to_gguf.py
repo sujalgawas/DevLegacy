@@ -57,7 +57,13 @@ def run(cmd: list, cwd=None):
 
 
 def pip_install(*packages: str):
-    run([sys.executable, "-m", "pip", "install", "--quiet", *packages])
+    # --ignore-installed avoids Windows file-lock errors on already-loaded DLLs
+    run([
+        sys.executable, "-m", "pip", "install",
+        "--quiet",
+        "--ignore-installed",
+        *packages,
+    ])
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -195,11 +201,12 @@ else:
         str(LLAMA_CPP_DIR),
     ])
 
-req_file = LLAMA_CPP_DIR / "requirements.txt"
-if req_file.exists():
-    pip_install("-r", str(req_file))
-
-print("  ✔  llama.cpp ready")
+# NOTE: We intentionally skip llama.cpp's requirements.txt here.
+# Everything it needs (torch, numpy, gguf, sentencepiece, transformers)
+# was already installed in Step 0 above.
+# Installing it again would trigger Windows file-lock errors on loaded DLLs
+# like asmjit.dll, and would conflict with the existing environment.
+print("  ✔  llama.cpp ready (skipping its requirements.txt — already satisfied above)")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -239,22 +246,150 @@ print("\n" + "=" * 70)
 print(f"STEP 6 — Quantizing to {QUANT_TYPE}")
 print("=" * 70)
 
+import platform
+import urllib.request
+import zipfile
+import tarfile
+import json as _json
+
 OUTPUT_GGUF_PATH.parent.mkdir(parents=True, exist_ok=True)
+PREBUILT_DIR = WORK_DIR / "llama_prebuilt"
 
-# Locate the llama-quantize binary (build first if missing)
-quantize_bin = LLAMA_CPP_DIR / "build" / "bin" / "llama-quantize"
-if not quantize_bin.exists():
-    quantize_bin = LLAMA_CPP_DIR / "quantize"  # older path
+IS_WINDOWS = platform.system() == "Windows"
+IS_MACOS   = platform.system() == "Darwin"
+QUANTIZE_NAME = "llama-quantize.exe" if IS_WINDOWS else "llama-quantize"
 
-if not quantize_bin.exists():
-    print("  llama-quantize binary not found — building llama.cpp …")
-    build_dir = LLAMA_CPP_DIR / "build"
-    build_dir.mkdir(exist_ok=True)
-    run(["cmake", ".."], cwd=build_dir)
-    run(["cmake", "--build", ".", "--config", "Release", "-j4"], cwd=build_dir)
-    quantize_bin = build_dir / "bin" / "llama-quantize"
-    if not quantize_bin.exists():
-        quantize_bin = LLAMA_CPP_DIR / "quantize"
+
+def _find_quantize_in_dir(directory: Path):
+    """Recursively search for llama-quantize binary under directory."""
+    for candidate in directory.rglob(QUANTIZE_NAME):
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _download_prebuilt_quantize() -> Path:
+    """Download the latest pre-built llama.cpp release — no compiler needed."""
+    print("  Fetching latest llama.cpp release info from GitHub ...")
+    api_url = "https://api.github.com/repos/ggerganov/llama.cpp/releases/latest"
+    req = urllib.request.Request(api_url, headers={"User-Agent": "convert_to_gguf"})
+    with urllib.request.urlopen(req) as resp:
+        release = _json.loads(resp.read().decode())
+
+    tag    = release["tag_name"]
+    assets = release["assets"]
+    print(f"  Latest release: {tag}")
+
+    if IS_WINDOWS:
+        priorities = [
+            "-bin-win-avx2-x64.zip",
+            "-bin-win-avx-x64.zip",
+            "-bin-win-noavx-x64.zip",
+            "-bin-win-cuda-12.4-x64.zip",
+            "-bin-win-cuda-x64.zip",
+            "-bin-win-x64.zip",
+        ]
+    elif IS_MACOS:
+        machine = platform.machine().lower()
+        arm_first = "-bin-macos-arm64.zip" if "arm" in machine else "-bin-macos-x64.zip"
+        priorities = [arm_first, "-bin-macos-arm64.zip", "-bin-macos-x64.zip"]
+    else:
+        priorities = ["-bin-ubuntu-x64.zip", "-bin-linux-x64.zip"]
+
+    # Only accept the real llama.cpp binary package. The "cudart-llama-bin-*"
+    # asset is a CUDA-runtime-only redistributable (just DLLs, no exe) and
+    # must never be selected — requiring startswith("llama-") excludes it,
+    # since that package's name starts with "cudart-".
+    valid_assets = [
+        a for a in assets
+        if a["name"].lower().startswith("llama-")
+        and a["name"].lower().endswith((".zip", ".tar.gz"))
+    ]
+
+    if not valid_assets:
+        raise RuntimeError(
+            f"No pre-built binary asset found for {platform.system()} in release {tag}.\n"
+            "Download llama-quantize manually from:\n"
+            "  https://github.com/ggerganov/llama.cpp/releases\n"
+            f"and place '{QUANTIZE_NAME}' inside: {PREBUILT_DIR}"
+        )
+
+    def sort_key(asset):
+        name = asset["name"].lower()
+        for i, suffix in enumerate(priorities):
+            if name.endswith(suffix):
+                return i
+        return len(priorities)  # unmatched names tried last, not skipped
+
+    candidates = sorted(valid_assets, key=sort_key)
+
+    last_error = None
+    for chosen_asset in candidates:
+        archive_name = chosen_asset["name"]
+        archive_path = WORK_DIR / archive_name
+
+        print(f"  Trying asset: {archive_name}")
+        try:
+            print(f"  Downloading {archive_name} ...")
+            urllib.request.urlretrieve(chosen_asset["browser_download_url"], archive_path)
+            print(f"  Download complete ({archive_path.stat().st_size / 1e6:.1f} MB)")
+
+            if PREBUILT_DIR.exists():
+                import shutil
+                shutil.rmtree(PREBUILT_DIR, ignore_errors=True)
+            PREBUILT_DIR.mkdir(exist_ok=True)
+
+            if archive_path.suffix == ".zip":
+                with zipfile.ZipFile(archive_path) as zf:
+                    zf.extractall(PREBUILT_DIR)
+            else:
+                with tarfile.open(archive_path) as tf:
+                    tf.extractall(PREBUILT_DIR)
+
+            try:
+                archive_path.unlink()
+            except Exception:
+                pass
+
+            found = _find_quantize_in_dir(PREBUILT_DIR)
+            if found:
+                if not IS_WINDOWS:
+                    found.chmod(0o755)
+                print(f"  llama-quantize ready at {found}")
+                return found
+
+            print(f"  ⚠  '{QUANTIZE_NAME}' not in {archive_name}, trying next candidate ...")
+        except Exception as e:
+            last_error = e
+            print(f"  ⚠  Failed with {archive_name}: {e}, trying next candidate ...")
+
+    contents = [str(p) for p in PREBUILT_DIR.rglob("*")][:20] if PREBUILT_DIR.exists() else []
+    raise RuntimeError(
+        f"Tried {len(candidates)} release asset(s) but none contained '{QUANTIZE_NAME}'.\n"
+        f"Last extracted dir contents (first 20): {contents}\n"
+        f"Last error: {last_error}\n\n"
+        "Download llama-quantize manually from:\n"
+        "  https://github.com/ggerganov/llama.cpp/releases\n"
+        f"and place '{QUANTIZE_NAME}' inside: {PREBUILT_DIR}"
+    )
+
+# Priority: prebuilt cache → alongside llama.cpp clone → download from GitHub
+quantize_bin = _find_quantize_in_dir(PREBUILT_DIR) if PREBUILT_DIR.exists() else None
+
+if quantize_bin is None:
+    for candidate in [
+        LLAMA_CPP_DIR / "build" / "bin" / QUANTIZE_NAME,
+        LLAMA_CPP_DIR / QUANTIZE_NAME,
+        LLAMA_CPP_DIR / "quantize",
+        LLAMA_CPP_DIR / "quantize.exe",
+    ]:
+        if candidate.exists():
+            quantize_bin = candidate
+            break
+
+if quantize_bin is None:
+    print("  llama-quantize binary not found — downloading pre-built release ...")
+    quantize_bin = _download_prebuilt_quantize()
 
 run([str(quantize_bin), str(GGUF_FP16_PATH), str(OUTPUT_GGUF_PATH), QUANT_TYPE])
 
@@ -266,7 +401,7 @@ run([str(quantize_bin), str(GGUF_FP16_PATH), str(OUTPUT_GGUF_PATH), QUANT_TYPE])
 size_gb = OUTPUT_GGUF_PATH.stat().st_size / 1e9
 
 print(f"\n{'=' * 70}")
-print("  ✅  ALL DONE!")
+print("  ALL DONE!")
 print(f"{'=' * 70}")
 print(f"\n  Final model : {OUTPUT_GGUF_PATH}")
 print(f"  File size   : {size_gb:.2f} GB")

@@ -4,6 +4,7 @@ import re
 from collections import defaultdict
 
 import numpy as np
+import requests
 from dotenv import load_dotenv
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -12,7 +13,7 @@ from app.services.helper_function import (
     FRAMEWORK_TIERS,
     MIN_MATCHES,
     ROLE_DATASET,
-    github_api,
+    _github_headers,
 )
 
 load_dotenv()
@@ -154,10 +155,44 @@ def get_role_recommendation(gitname: str) -> dict:
     }
     """
     try:
-        data = github_api(query, {"owner": gitname})
-        repos = data.get("data", {}).get("user", {}).get("repositories", {}).get("nodes", [])
+        # Use a longer timeout (30s) since this runs concurrently with 7 other
+        # network calls and the default 20s in github_api() can expire under load.
+        response = requests.post(
+            "https://api.github.com/graphql",
+            json={"query": query, "variables": {"owner": gitname}},
+            headers=_github_headers(),
+            timeout=30,
+        )
+        response.raise_for_status()
+        data = response.json()
     except Exception as exc:
-        logger.warning("get_role_recommendation GraphQL query failed for %s: %s", gitname, exc)
+        logger.warning("get_role_recommendation HTTP request failed for %s: %s", gitname, exc)
+        return {"detected_frameworks": [], "recommended_roles": []}
+
+    # GraphQL can return "user": null (rate-limited, private profile, user not found).
+    # .get("user", {}) only uses the default when the key is *absent* -- if the key
+    # IS present with value None, it still returns None, causing AttributeError.
+    # Guard explicitly.
+    if "errors" in data:
+        logger.warning(
+            "get_role_recommendation: GraphQL errors for '%s': %s",
+            gitname, data["errors"],
+        )
+        return {"detected_frameworks": [], "recommended_roles": []}
+
+    gql_data = data.get("data") or {}
+    user_node = gql_data.get("user")
+    if not user_node:
+        logger.warning(
+            "get_role_recommendation: GitHub returned null/missing user for '%s'",
+            gitname,
+        )
+        return {"detected_frameworks": [], "recommended_roles": []}
+
+    try:
+        repos = user_node.get("repositories", {}).get("nodes", []) or []
+    except Exception as exc:
+        logger.warning("get_role_recommendation: failed to parse repos for %s: %s", gitname, exc)
         return {"detected_frameworks": [], "recommended_roles": []}
 
     framework_counts: dict = defaultdict(int)
@@ -166,12 +201,12 @@ def get_role_recommendation(gitname: str) -> dict:
         combined_text_parts = [repo.get("name", "")]
 
         # Topics
-        topics = repo.get("repositoryTopics", {}).get("nodes", [])
+        topics = (repo.get("repositoryTopics") or {}).get("nodes", []) or []
         for t in topics:
-            combined_text_parts.append(t.get("topic", {}).get("name", ""))
+            combined_text_parts.append((t.get("topic") or {}).get("name", ""))
 
         # Languages
-        langs = repo.get("languages", {}).get("nodes", [])
+        langs = (repo.get("languages") or {}).get("nodes", []) or []
         for l in langs:
             combined_text_parts.append(l.get("name", ""))
 
