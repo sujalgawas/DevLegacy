@@ -1,5 +1,4 @@
 import asyncio
-import itertools
 import json
 import logging
 import os
@@ -42,9 +41,8 @@ from app.services.role_recommendation import get_role_recommendation
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# In-memory store: {task_id: {"status": "...", "data": ..., "created_at": float}}
 TASK_STORE: dict = {}
-_TASK_TTL_SECONDS = 3600  # 1 hour
+_TASK_TTL_SECONDS = 3600  #1 hour
 
 
 def _prune_task_store():
@@ -57,7 +55,7 @@ def _prune_task_store():
     for tid in expired:
         TASK_STORE.pop(tid, None)
 
-
+#default url using docker-composer
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 redis_client = aioredis.from_url(REDIS_URL, decode_responses=True)
 
@@ -271,7 +269,6 @@ async def background_analysis_worker(task_id: str, gitname: str, uid: str):
         db.close()
 
 
-# ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("/check/{gitname}")
 async def check_existing_analysis(gitname: str, db: Session = Depends(get_db)):

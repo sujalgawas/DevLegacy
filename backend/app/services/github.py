@@ -1,14 +1,9 @@
 import logging
-import os
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 
-import requests
-
 from app.services.cloc import get_comment_to_code
 from app.services.helper_function import (
-    INDICATOR_FILES,
-    _github_headers,
     get_user_id,
     github_api,
     jupternotebook_cleaner,
