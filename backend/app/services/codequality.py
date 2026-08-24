@@ -50,7 +50,7 @@ N_THREADS   = 4      # CPU threads for inference
 N_GPU_LAYERS = 0     # keep at 0 (CPU-only); set > 0 only if you have a GPU
 
 # ── Scoring ───────────────────────────────────────────────────────────────────
-SEVERITY_MAP = {"minor": 20, "major": 40, "critical": 60}
+SEVERITY_MAP = {"minor": 5, "major": 10, "critical": 20}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -138,9 +138,11 @@ def score_normalize(response: dict) -> int:
         if raw_severity is None:
             continue
         penalty = SEVERITY_MAP.get(str(raw_severity).lower().strip())
+        """
         if penalty is not None:
             score -= penalty
-    return max(score, 0)
+        """
+    return max(penalty, 0)
 
 
 def model_run(code_sample: str):
@@ -245,17 +247,20 @@ def code_quality(code):
 
     if not scores:
         return 0, "Intern"
+    
+    maxi = 100
+    total = sum(scores)
+    
+    score = max(0, (maxi - total))
 
-    avg = sum(scores) / len(scores)
-
-    if avg < 30:
-        return avg, "Intern"
-    elif avg < 50:
-        return avg, "Fresher"
-    elif avg < 70:
-        return avg, "Mid"
+    if score < 30:
+        return score, "Intern"
+    elif score < 50:
+        return score, "Fresher"
+    elif score < 70:
+        return score, "Mid"
     else:
-        return avg, "Senior"
+        return score, "Senior"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
